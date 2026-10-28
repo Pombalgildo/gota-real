@@ -196,10 +196,10 @@ export function ProfileView() {
             )}
             <Button
               variant="outline"
-              className="mt-3 h-10 w-full rounded-xl font-bold"
+              className="mt-3 h-12 w-full rounded-2xl text-sm font-black"
               onClick={() => setLocOpen(true)}
             >
-              <MapPin className="h-4 w-4 text-primary" /> Actualizar localização
+              <MapPin className="h-5 w-5 text-primary" /> Actualizar localização
             </Button>
           </>
         ) : (
@@ -239,22 +239,22 @@ export function ProfileView() {
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           Acesso para a equipa Gota REAL (modo demonstração).
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-3">
           <Button
             variant={mode === 'central' ? 'default' : 'outline'}
-            className="h-11 flex-col gap-0.5 rounded-xl py-2"
+            className="h-16 flex-col gap-1 rounded-2xl py-2"
             onClick={() => setMode('central')}
           >
-            <Building2 className="h-4.5 w-4.5" />
-            <span className="text-[11px] font-bold">Central</span>
+            <Building2 className="h-6 w-6" />
+            <span className="text-xs font-black">Central</span>
           </Button>
           <Button
             variant={mode === 'motoboy' ? 'default' : 'outline'}
-            className="h-11 flex-col gap-0.5 rounded-xl py-2"
+            className="h-16 flex-col gap-1 rounded-2xl py-2"
             onClick={() => setMode('motoboy')}
           >
-            <Bike className="h-4.5 w-4.5" />
-            <span className="text-[11px] font-bold">Motoboy</span>
+            <Bike className="h-6 w-6" />
+            <span className="text-xs font-black">Motoboy</span>
           </Button>
         </div>
       </div>
@@ -269,9 +269,8 @@ export function ProfileView() {
           </div>
         </div>
         <Button
-          variant="ghost"
-          size="sm"
-          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+          variant="outline"
+          className="h-10 rounded-2xl border-red-200 px-4 text-xs font-black text-red-600 hover:bg-red-50 hover:text-red-700"
           onClick={() => {
             setCustomer(null)
             setMode('cliente')

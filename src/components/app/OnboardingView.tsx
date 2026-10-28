@@ -269,17 +269,17 @@ export function OnboardingView() {
             <>
               <Button
                 onClick={() => setStep('dados')}
-                className="btn-gold h-13 w-full rounded-2xl text-base"
+                className="btn-gold h-14 w-full rounded-2xl text-base"
               >
                 <Sparkles className="h-5 w-5" />
-                Criar a minha conta
+                CRIAR A MINHA CONTA
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => setLoginOpen(true)}
-                className="w-full rounded-2xl text-white/90 hover:bg-white/10 hover:text-white"
+                className="h-12 w-full rounded-2xl text-sm font-bold text-white/90 hover:bg-white/10 hover:text-white"
               >
-                <LogIn className="h-4 w-4" />
+                <LogIn className="h-5 w-5" />
                 Já tenho conta (entrar com telefone)
               </Button>
             </>

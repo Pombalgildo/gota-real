@@ -15,17 +15,17 @@ import { BrandLogo } from '@/components/app/Brand'
 import { cn } from '@/lib/utils'
 import type { CustomerTab } from '@/store/app-store'
 import {
-  Droplets,
   Home,
   MessageSquareHeart,
   ReceiptText,
   ShoppingBasket,
+  Store,
   User,
 } from 'lucide-react'
 
 const NAV: { key: CustomerTab; label: string; icon: typeof Home }[] = [
   { key: 'inicio', label: 'Início', icon: Home },
-  { key: 'produtos', label: 'Produtos', icon: Droplets },
+  { key: 'produtos', label: 'Loja', icon: Store },
   { key: 'pedidos', label: 'Pedidos', icon: ReceiptText },
   { key: 'feedback', label: 'Opinião', icon: MessageSquareHeart },
   { key: 'perfil', label: 'Perfil', icon: User },
@@ -103,9 +103,9 @@ function CustomerApp() {
         {tab === 'perfil' && <ProfileView />}
       </main>
 
-      {/* navegação inferior */}
+      {/* navegação inferior — botões grandes */}
       <nav
-        className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 backdrop-blur-md"
+        className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t-2 border-border bg-white/95 backdrop-blur-md"
         aria-label="Navegação principal"
       >
         <div className="mx-auto grid max-w-3xl grid-cols-5">
@@ -116,20 +116,27 @@ function CustomerApp() {
                 key={key}
                 onClick={() => setTab(key)}
                 className={cn(
-                  'flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 py-2 transition-colors',
+                  'group flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 transition-all duration-150 active:scale-95',
                   active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 )}
                 aria-current={active ? 'page' : undefined}
               >
                 <span
                   className={cn(
-                    'flex h-7 w-12 items-center justify-center rounded-full transition-all',
-                    active && 'bg-secondary'
+                    'relative flex h-9 w-14 items-center justify-center rounded-2xl transition-all duration-200',
+                    active ? 'bg-primary text-white shadow-md' : 'group-hover:bg-secondary'
                   )}
                 >
-                  <Icon className="h-4.5 w-4.5" />
+                  <Icon className="h-5.5 w-5.5" />
+                  {key === 'produtos' && cart.length > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white shadow">
+                      {cart.reduce((s, i) => s + i.quantity, 0)}
+                    </span>
+                  )}
                 </span>
-                <span className="text-[10px] font-bold leading-none">{label}</span>
+                <span className={cn('text-[11px] font-black leading-none', active && 'text-primary')}>
+                  {label}
+                </span>
               </button>
             )
           })}

@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { useAppStore, formatKz, formatLiters, formatDateTime, durationMinutes } from '@/store/app-store'
-import { useCustomerOrders, useCourierPosition } from '@/components/app/hooks'
+import { useCustomerOrders, useCourierPosition, useProducts } from '@/components/app/hooks'
 import { OrderTimeline } from '@/components/app/OrderTimeline'
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { MiniMap } from '@/components/app/MiniMap'
@@ -20,6 +21,7 @@ import {
   Navigation,
   Phone,
   ReceiptText,
+  RotateCcw,
   XCircle,
 } from 'lucide-react'
 
@@ -160,18 +162,18 @@ function TrackingDetail({ order, onBack }: { order: Order; onBack: () => void })
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className="h-10 flex-1 rounded-xl font-bold"
+              className="h-12 flex-1 rounded-2xl text-sm font-black"
               onClick={() => window.open(googleMapsNavUrl(customerPoint), '_blank')}
             >
-              <Navigation className="h-4 w-4 text-primary" /> Ver no Google Maps
+              <Navigation className="h-5 w-5 text-primary" /> Google Maps
             </Button>
             {order.courier?.phone && (
               <Button
                 variant="outline"
-                className="h-10 flex-1 rounded-xl font-bold"
+                className="h-12 flex-1 rounded-2xl text-sm font-black"
                 onClick={() => (window.location.href = `tel:${order.courier!.phone.replace(/\s/g, '')}`)}
               >
-                <Phone className="h-4 w-4 text-emerald-600" /> Ligar ao motoboy
+                <Phone className="h-5 w-5 text-emerald-600" /> Ligar ao motoboy
               </Button>
             )}
           </div>
@@ -284,6 +286,45 @@ function TrackingDetail({ order, onBack }: { order: Order; onBack: () => void })
           </p>
         </div>
       </div>
+
+      {/* pedir novamente — repete o pedido com um toque */}
+      {(order.status === 'entregue' || order.status === 'cancelado') && (
+        <ReorderButton order={order} />
+      )}
     </div>
+  )
+}
+
+/* Botão grande para repetir um pedido anterior (dados reais da base de dados) */
+function ReorderButton({ order }: { order: Order }) {
+  const { addToCart, setCheckoutOpen } = useAppStore()
+  const { products } = useProducts()
+  const [added, setAdded] = useState(false)
+
+  function reorder() {
+    let matched = 0
+    for (const item of order.items) {
+      const product = products.find((p) => p.id === item.productId || p.name === item.productName)
+      if (product) {
+        addToCart(product, item.quantity)
+        matched++
+      }
+    }
+    if (matched > 0) {
+      setAdded(true)
+      setCheckoutOpen(true)
+    }
+  }
+
+  if (products.length === 0) return null
+
+  return (
+    <button
+      onClick={reorder}
+      className="btn-gold flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-base font-black transition-all duration-150 hover:brightness-105 active:scale-[0.98]"
+    >
+      <RotateCcw className="h-5 w-5" />
+      {added ? 'Pedido no carrinho!' : 'PEDIR NOVAMENTE'}
+    </button>
   )
 }

@@ -55,11 +55,11 @@ export function QuantityStepper({
   onChange: (v: number) => void
   min?: number
   max?: number
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
   className?: string
 }) {
-  const btn = size === 'sm' ? 'h-8 w-8' : 'h-10 w-10'
-  const icon = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
+  const btn = size === 'sm' ? 'h-8 w-8' : size === 'lg' ? 'h-11 w-11' : 'h-10 w-10'
+  const icon = size === 'sm' ? 'h-4 w-4' : size === 'lg' ? 'h-5.5 w-5.5' : 'h-5 w-5'
   return (
     <div className={cn('inline-flex items-center gap-1', className)}>
       <button

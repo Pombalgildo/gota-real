@@ -117,9 +117,13 @@ export function FeedbackView() {
             className="min-h-24"
           />
         </div>
-        <Button onClick={submit} disabled={sending} className="h-11 w-full font-bold">
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Enviar {type === 'sugestao' ? 'sugestão' : 'reclamação'}
+        <Button
+          onClick={submit}
+          disabled={sending}
+          className="btn-gold h-13 w-full rounded-2xl text-base"
+        >
+          {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+          ENVIAR {type === 'sugestao' ? 'SUGESTÃO' : 'RECLAMAÇÃO'}
         </Button>
       </div>
 
