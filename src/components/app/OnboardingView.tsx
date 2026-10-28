@@ -11,16 +11,11 @@ import { useAppStore } from '@/store/app-store'
 import { registerCustomer } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import {
-  Bike,
-  CreditCard,
   Droplets,
   KeyRound,
   Loader2,
   LogIn,
-  MapPin,
-  ShieldCheck,
   Sparkles,
-  Warehouse,
 } from 'lucide-react'
 
 type Step = 'boas-vindas' | 'dados' | 'localizacao'
@@ -38,7 +33,6 @@ export function OnboardingView() {
   const [locationMode, setLocationMode] = useState<'exata' | 'auto'>('exata')
   const [submitting, setSubmitting] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
-  const [loginPrefill, setLoginPrefill] = useState<string | undefined>(undefined)
 
   async function handleRegister() {
     if (!name.trim() || !phone.trim()) {
@@ -119,72 +113,28 @@ export function OnboardingView() {
         <div className="mt-8 flex-1">
           {step === 'boas-vindas' && (
             <div className="space-y-5">
-              <div className="glass-card rounded-2xl p-5 text-white">
-                <h1 className="text-xl font-black leading-snug">
+              <div className="glass-card rounded-2xl p-6 text-white">
+                <h1 className="text-2xl font-black leading-snug">
                   Água purificada entregue onde estiver. 👑
                 </h1>
-                <p className="mt-2 text-sm leading-relaxed text-[#cfe7f8]">
+                <p className="mt-2.5 text-sm leading-relaxed text-[#cfe7f8]">
                   Peça os seus bidões de 5 litros (ou outros formatos), pague por{' '}
-                  <b>TPA</b> ou <b>dinheiro</b> e acompanhe o motoboy por GPS em tempo real.
+                  <b>TPA</b> ou <b>dinheiro</b> e acompanhe a entrega por GPS em tempo real.
                 </p>
-              </div>
-
-              <ul className="space-y-2.5">
-                {[
-                  { icon: Droplets, text: 'Bidões de 5L, garrafões e garrafas — do pack familiar ao grande consumo' },
-                  { icon: CreditCard, text: 'Pague com TPA (cartão) ou dinheiro na entrega' },
-                  { icon: MapPin, text: 'Cadastre-se no local exacto de entrega — nunca mais perca o motoboy' },
-                  { icon: Bike, text: 'Acompanhe a entrega em tempo real, do pedido à porta de casa' },
-                  { icon: ShieldCheck, text: 'Registo de horas: saiba quando pediu e quando recebeu' },
-                ].map(({ icon: Icon, text }, i) => (
-                  <li key={i} className="flex items-start gap-3 rounded-xl bg-white/95 p-3 shadow-sm">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <p className="text-[13px] leading-snug text-foreground">{text}</p>
-                  </li>
-                ))}
-              </ul>
-
-              {/* ---------- ACESSO DA EQUIPA: entrada com perfil e senha ---------- */}
-              <div className="glass-card rounded-2xl p-4 text-white">
-                <p className="text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#BDE3F5]">
-                  Acesso da equipa Gota REAL
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2.5">
-                  <button
-                    onClick={() => {
-                      setLoginPrefill('admin@gotareal.ao')
-                      setLoginOpen(true)
-                    }}
-                    className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-white/95 p-3 shadow-md transition-all duration-150 hover:bg-white active:scale-[0.97]"
-                    aria-label="Entrar no painel da Central (Administrador)"
-                  >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl gota-gradient text-white shadow">
-                      <Warehouse className="h-5 w-5" />
-                    </span>
-                    <span className="text-xs font-black leading-tight text-navy">CENTRAL</span>
-                    <span className="text-[10px] font-semibold leading-tight text-muted-foreground">Administrador</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setLoginPrefill('motoboy@gotareal.ao')
-                      setLoginOpen(true)
-                    }}
-                    className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-white/95 p-3 shadow-md transition-all duration-150 hover:bg-white active:scale-[0.97]"
-                    aria-label="Entrar no painel do Motoboy (Entregador)"
-                  >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl gota-gradient text-white shadow">
-                      <Bike className="h-5 w-5" />
-                    </span>
-                    <span className="text-xs font-black leading-tight text-navy">MOTOBOY</span>
-                    <span className="text-[10px] font-semibold leading-tight text-muted-foreground">Entregador</span>
-                  </button>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white ring-1 ring-white/20">
+                    💧 Purificada
+                  </span>
+                  <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white ring-1 ring-white/20">
+                    🛵 Entrega rápida
+                  </span>
+                  <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white ring-1 ring-white/20">
+                    📍 Luanda
+                  </span>
                 </div>
-                <p className="mt-2.5 text-center text-[10px] leading-snug text-[#cfe7f8]">
-                  Entrada com perfil e senha — o administrador cria os perfis da equipa.
-                </p>
               </div>
+
+              {/* detalhes do serviço ficam no "Quem Somos", dentro do perfil do cliente */}
             </div>
           )}
 
@@ -316,14 +266,11 @@ export function OnboardingView() {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => {
-                  setLoginPrefill(undefined)
-                  setLoginOpen(true)
-                }}
+                onClick={() => setLoginOpen(true)}
                 className="h-12 w-full rounded-2xl text-sm font-bold text-white/90 hover:bg-white/10 hover:text-white"
               >
                 <LogIn className="h-5 w-5" />
-                Já tenho conta (entrar com perfil e senha)
+                Já tenho conta — Entrar
               </Button>
             </>
           )}
@@ -373,12 +320,8 @@ export function OnboardingView() {
         </div>
       </div>
 
-      {/* dialog de login por perfil (cliente, administrador e motoboy) */}
-      <LoginDialog
-        open={loginOpen}
-        onOpenChange={setLoginOpen}
-        prefillIdentifier={loginPrefill}
-      />
+      {/* dialog de login — entrada única e discreta para clientes e equipa */}
+      <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
     </div>
   )
 }

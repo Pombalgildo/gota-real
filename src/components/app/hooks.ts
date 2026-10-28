@@ -77,16 +77,17 @@ export function useCustomerOrders(customerId: string | null | undefined) {
   useEffect(() => {
     const socket = getRealtimeSocket()
     const onUpdate = (data: { order?: Order }) => {
-      if (!data?.order) return
+      const order = data?.order
+      if (!order) return
       setOrders((prev) => {
-        const idx = prev.findIndex((o) => o.id === data.order!.id)
+        const idx = prev.findIndex((o) => o.id === order.id)
         if (idx === -1) {
           // pedido novo deste cliente (outra aba/dispositivo)
-          if (data.order.customerId === customerId) return [data.order, ...prev]
+          if (order.customerId === customerId) return [order, ...prev]
           return prev
         }
         const next = [...prev]
-        next[idx] = data.order
+        next[idx] = order
         return next
       })
     }
@@ -123,12 +124,13 @@ export function useAllOrders() {
   useEffect(() => {
     const socket = getRealtimeSocket()
     const onNew = (data: { order?: Order }) => {
-      if (!data?.order) return
+      const order = data?.order
+      if (!order) return
       setOrders((prev) => {
-        const idx = prev.findIndex((o) => o.id === data.order!.id)
-        if (idx === -1) return [data.order, ...prev]
+        const idx = prev.findIndex((o) => o.id === order.id)
+        if (idx === -1) return [order, ...prev]
         const next = [...prev]
-        next[idx] = data.order
+        next[idx] = order
         return next
       })
     }
@@ -187,14 +189,15 @@ export function useFeedback(customerId?: string | null) {
   useEffect(() => {
     const socket = getRealtimeSocket()
     const onNew = (data: { feedback?: Feedback }) => {
-      if (!data?.feedback) return
+      const feedback = data?.feedback
+      if (!feedback) return
       setFeedbacks((prev) => {
         // se for lista de um cliente, apenas adiciona os dele
-        if (customerId && data.feedback!.customerId !== customerId) return prev
-        const idx = prev.findIndex((f) => f.id === data.feedback!.id)
-        if (idx === -1) return [data.feedback, ...prev]
+        if (customerId && feedback.customerId !== customerId) return prev
+        const idx = prev.findIndex((f) => f.id === feedback.id)
+        if (idx === -1) return [feedback, ...prev]
         const next = [...prev]
-        next[idx] = data.feedback
+        next[idx] = feedback
         return next
       })
     }

@@ -109,12 +109,12 @@ function CustomerApp() {
   useEffect(() => {
     const socket = getRealtimeSocket()
     const onBan = (data: { customerId?: string; banned?: boolean; banReason?: string | null }) => {
-      if (!data || data.customerId !== customer?.id) return
+      if (!customer || !data || data.customerId !== customer.id) return
       setCustomer({
         ...customer,
         banned: Boolean(data.banned),
         banReason: data.banReason ?? null,
-      })
+      } as typeof customer)
     }
     socket.on('auth:banned', onBan)
     return () => {

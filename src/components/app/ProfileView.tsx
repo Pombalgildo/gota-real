@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAppStore, formatDateTime } from '@/store/app-store'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { LogoutButton } from '@/components/app/LoginDialog'
+import { DropCrownIcon } from '@/components/app/Brand'
 import { updateCustomer } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import { useCustomerOrders, useStoreConfig } from '@/components/app/hooks'
@@ -15,7 +16,10 @@ import { Separator } from '@/components/ui/separator'
 import {
   Bike,
   Building2,
+  ChevronDown,
   Clock,
+  CreditCard,
+  Droplets,
   Loader2,
   Mail,
   MapPin,
@@ -40,6 +44,7 @@ export function ProfileView() {
   const [locOpen, setLocOpen] = useState(false)
   const [location, setLocation] = useState<PickedLocation | null>(null)
   const [locSaving, setLocSaving] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   if (!customer) return null
 
@@ -283,6 +288,72 @@ export function ProfileView() {
           )}
         </div>
       )}
+
+      {/* ---------- QUEM SOMOS: os detalhes do serviço vivem aqui ---------- */}
+      <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setAboutOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2"
+          aria-expanded={aboutOpen}
+        >
+          <h3 className="flex items-center gap-1.5 text-sm font-black text-navy">
+            <DropCrownIcon size={20} /> Quem Somos
+          </h3>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+              aboutOpen ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+
+        {!aboutOpen ? (
+          <p className="mt-1 text-xs leading-snug text-muted-foreground">
+            Conheça a Gota REAL e como funciona o nosso serviço de entrega.
+          </p>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <p className="text-xs leading-relaxed text-foreground">
+              A <b>Gota REAL</b> trata e purifica água para o seu consumo diário e
+              entrega onde estiver — em casa, no escritório ou em eventos. Basta
+              escolher os artigos na loja, indicar a quantidade e a nossa equipa de
+              motoboys leva até si, com pagamento na entrega e acompanhamento por
+              GPS do pedido até à sua porta.
+            </p>
+            <ul className="space-y-2">
+              {[
+                {
+                  icon: Droplets,
+                  text: 'Bidões de 5L, garrafões e garrafas — do pack familiar ao grande consumo',
+                },
+                {
+                  icon: CreditCard,
+                  text: 'Pague com TPA (cartão) ou dinheiro na entrega',
+                },
+                {
+                  icon: MapPin,
+                  text: 'Cadastre-se no local exacto de entrega — nunca mais perca o motoboy',
+                },
+                {
+                  icon: Bike,
+                  text: 'Acompanhe a entrega em tempo real, do pedido à porta de casa',
+                },
+                {
+                  icon: ShieldCheck,
+                  text: 'Registo de horas: saiba quando pediu e quando recebeu',
+                },
+              ].map(({ icon: Icon, text }, i) => (
+                <li key={i} className="flex items-start gap-3 rounded-xl bg-secondary/50 p-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-primary shadow-sm">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <p className="text-[13px] leading-snug text-foreground">{text}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
       {/* segurança / sair */}
       <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-4 shadow-sm">

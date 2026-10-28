@@ -123,10 +123,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // banimento reflecte-se no registo do cliente (bloqueia pedidos)
     let customer = updated.customer
     if (user.customerId && body.banned != null) {
-      customer = (await db.customer.update({
+      customer = await db.customer.update({
         where: { id: user.customerId },
         data: { banned: Boolean(body.banned), banReason: data.banReason as string | null },
-      })) as typeof customer
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          banned: true,
+          _count: { select: { orders: true } },
+        },
+      })
       // avisa o cliente em tempo real (a app dele mostra o bloqueio na hora)
       await emitRealtime('auth:banned', {
         customerId: user.customerId,

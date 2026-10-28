@@ -28,7 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import type { Order, Product, User } from '@/lib/types'
+import type { Order, Product, User as UserDTO } from '@/lib/types'
 import { ROLE_LABEL } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
@@ -880,9 +880,9 @@ function UsersPanel() {
   const { toast } = useToast()
 
   const [addOpen, setAddOpen] = useState(false)
-  const [editing, setEditing] = useState<User | null>(null)
-  const [banning, setBanning] = useState<User | null>(null)
-  const [deleting, setDeleting] = useState<User | null>(null)
+  const [editing, setEditing] = useState<UserDTO | null>(null)
+  const [banning, setBanning] = useState<UserDTO | null>(null)
+  const [deleting, setDeleting] = useState<UserDTO | null>(null)
 
   const workers = users.filter((u) => u.role === 'ADMIN' || u.role === 'MOTOBOY')
   const clients = users.filter((u) => u.role === 'CLIENTE')
@@ -1046,7 +1046,7 @@ function UserRow({
   onBan,
   onDelete,
 }: {
-  user: User
+  user: UserDTO
   isSelf: boolean
   onEdit: () => void
   onBan?: () => void
@@ -1360,7 +1360,7 @@ function EditUserDialog({
   onOpenChange,
   onSaved,
 }: {
-  user: User
+  user: UserDTO
   token: string
   onOpenChange: (o: boolean) => void
   onSaved: () => void
@@ -1471,7 +1471,7 @@ function BanUserDialog({
   onClose,
   onDone,
 }: {
-  user: User
+  user: UserDTO
   token: string
   onClose: () => void
   onDone: () => void

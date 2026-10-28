@@ -16,48 +16,21 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Bike,
   KeyRound,
   Loader2,
   LogIn,
-  ShieldCheck,
-  User,
-  Warehouse,
 } from 'lucide-react'
 
-// contas de demonstração — um toque preenche os dados para testar
-const DEMO_ACCOUNTS = [
-  {
-    role: 'ADMINISTRADOR',
-    icon: Warehouse,
-    identifier: 'admin@gotareal.ao',
-    password: 'admin123',
-    hint: 'recebe pedidos, cria perfis, gere a loja',
-  },
-  {
-    role: 'MOTOBOY',
-    icon: Bike,
-    identifier: 'motoboy@gotareal.ao',
-    password: 'motoboy123',
-    hint: 'recebe entregas com GPS e dados do cliente',
-  },
-  {
-    role: 'CLIENTE',
-    icon: User,
-    identifier: 'cliente@gotareal.ao',
-    password: 'cliente123',
-    hint: 'pede água, paga por TPA ou cash, rastreia',
-  },
-] as const
+// As contas da equipa (central e motoboys) existem na base de dados,
+// mas NÃO são divulgadas aqui — entram pela mesma entrada discreta,
+// sem qualquer indício público dos painéis internos.
 
 export function LoginDialog({
   open,
   onOpenChange,
-  prefillIdentifier,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
-  prefillIdentifier?: string
 }) {
   const { setAuth, setCustomer, setMode, setCourierId } = useAppStore()
   const { toast } = useToast()
@@ -68,10 +41,10 @@ export function LoginDialog({
 
   useEffect(() => {
     if (open) {
-      setIdentifier(prefillIdentifier ?? '')
+      setIdentifier('')
       setPassword('')
     }
-  }, [open, prefillIdentifier])
+  }, [open])
 
   async function handleLogin() {
     if (!identifier.trim() || !password) return
@@ -117,10 +90,10 @@ export function LoginDialog({
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-navy">
-            <KeyRound className="h-5 w-5 text-primary" /> Entrar com o meu perfil
+            <KeyRound className="h-5 w-5 text-primary" /> Entrar
           </DialogTitle>
           <DialogDescription>
-            Administrador, motoboy ou cliente — cada um abre o seu próprio painel.
+            Use o telefone ou e-mail da sua conta e a sua senha.
           </DialogDescription>
         </DialogHeader>
 
@@ -129,7 +102,7 @@ export function LoginDialog({
             <Label htmlFor="login-identifier">E-mail ou telefone</Label>
             <Input
               id="login-identifier"
-              placeholder="Ex.: admin@gotareal.ao"
+              placeholder="Ex.: 923 456 789"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               autoComplete="username"
@@ -141,46 +114,12 @@ export function LoginDialog({
             <Input
               id="login-password"
               type="password"
-              placeholder="A sua senha de entrada"
+              placeholder="A sua senha"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             />
-          </div>
-
-          {/* contas de demonstração — toque para preencher */}
-          <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-secondary/40 p-3">
-            <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-navy">
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Contas para ver como funciona
-            </p>
-            <div className="mt-2 space-y-1.5">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.identifier}
-                  type="button"
-                  onClick={() => {
-                    setIdentifier(acc.identifier)
-                    setPassword(acc.password)
-                  }}
-                  className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-white p-2.5 text-left shadow-sm transition-all hover:border-primary hover:bg-secondary/50 active:scale-[0.98]"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg gota-gradient text-white">
-                    <acc.icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-black text-navy">{acc.role}</span>
-                    <span className="block truncate text-[10px] text-muted-foreground">
-                      {acc.identifier} · {acc.password}
-                    </span>
-                  </span>
-                  <span className="text-[9px] font-bold text-primary">PREENCHER</span>
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-[10px] leading-snug text-muted-foreground">
-              Toque numa conta para preencher e depois toque em <b>Entrar</b>.
-            </p>
           </div>
         </div>
 
