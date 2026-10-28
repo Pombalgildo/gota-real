@@ -49,3 +49,28 @@ Stage Summary:
 - Motoboy: recebe o pedido do cliente com todos os dados, entrega via GPS (real ou simulado) visível ao cliente no mapa ao vivo
 - Loja: fotos reais e preços colocados pelo admin ficam imediatamente visíveis ao cliente (base de dados SQLite real + WebSocket)
 - Nota: foto de teste (logo) no Bidão 5L; o admin pode substituir por fotos reais dos artigos na hora
+
+---
+Task ID: 3
+Agent: main (Z.ai)
+Task: Sistema de LOGIN POR PERFIL (administrador, motoboy, cliente) com senhas encriptadas; admin cria perfis de trabalhadores, elimina qualquer perfil e bane clientes por má conduta; dados da loja preenchidos pela equipa
+
+Work Log:
+- Schema Prisma: modelos User (role ADMIN/MOTOBOY/CLIENTE, senha scrypt, active/banned/banReason, ligações a Customer e Courier), Session (tokens de 30 dias) e StoreConfig (dados da loja); Customer ganhou banned/banReason; Courier ganhou userId
+- Autenticação (src/lib/auth.ts): hash/verify scrypt, sessões na base de dados, getUserFromRequest/requireAdmin/requireStaff via Authorization Bearer, publicUser sem senha
+- Seed idempotente cria 3 contas de demonstração: admin@gotareal.ao/admin123 (ADMIN), motoboy@gotareal.ao/motoboy123 (MOTOBOY ligado ao entregador João), cliente@gotareal.ao/cliente123 (CLIENTE ligado à Ana Paula Silva com GPS exacto em Luanda) + dados padrão da loja
+- APIs novas: POST /api/auth/login (e-mail OU telefone + senha → token + encaminhamento por perfil), POST /api/auth/logout, GET/POST /api/users (lista e criação de trabalhadores — só admin), PATCH/DELETE /api/users/[id] (editar, activar/desactivar, banir com motivo, eliminar; protege o próprio admin), GET/PATCH /api/store (dados da loja — admin e perfis criados por ele)
+- Registo de cliente (POST /api/customers) passa a criar o User de login (senha escolhida ou telefone como senha inicial; e-mail interno <telefone>@clientes.gotareal.ao quando não fornecido)
+- POST /api/orders bloqueia clientes banidos (403 com motivo); banimento reflecte no Customer e emite 'auth:banned' em tempo real
+- Frontend: LoginDialog com contas de demonstração de um toque (ADMIN/MOTOBOY/CLIENTE); Onboarding ganhou campo de senha e os botões CENTRAL/MOTOBOY abrem o login; GotaRealApp encaminha por perfil autenticado + BannedScreen para banidos (com motivo e saída); LogoutButton em todos os painéis; registo de cliente com senha opcional
+- Painel do Administrador: 5 separadores (Pedidos, Mensagens, Loja, Perfis, Ajustes); Perfis = gestão completa (criar trabalhador com senha própria e mota, editar, desactivar, banir/desbanir cliente com motivos pré-definidos, eliminar qualquer perfil com confirmação); Ajustes = dados da loja (nome, slogan, telefone, WhatsApp, endereço, horário, taxa de entrega, pedido mínimo, nota) com emissão 'store:update'
+- Perfil do cliente mostra os dados da loja preenchidos pela equipa (tempo real via 'store:update')
+- Correcção Prisma: relação User↔Courier tem a chave no Courier (userId), ligações feitas com courier.update (não courierId no user.create)
+- Verificação e2e com agent-browser (2 sessões: admin desktop + cliente/motoboy em iPhone 14): login nos 3 perfis; criação do motoboy Manuel Neto e atribuição de pedidos a ele; banimento da Ana Paula (motivo "Falsos pedidos") visto NO TELEMÓVEL DO CLIENTE em tempo real (Conta suspensa com motivo) e recuperação ao desbanir; dados da loja editados no Ajustes (horário) visíveis de imediato no perfil do cliente; pedido nº1004 atribuído ao João → Iniciar entrega → simulação GPS → Concluir (entregue); 18 testes de API aprovados; sem erros de consola
+
+Stage Summary:
+- Login por perfil com senhas encriptadas (scrypt) e sessões na base de dados real
+- PERFIS DE ENTRADA (demonstração): admin@gotareal.ao/admin123 · motoboy@gotareal.ao/motoboy123 · cliente@gotareal.ao/cliente123 — mostrados no próprio ecrã de login com preenchimento de um toque
+- Administrador cria perfis de trabalhadores (administradores e motoboys com senha própria), edita, desactiva, elimina qualquer perfil e bane clientes por má conduta (bloqueio de pedidos + aviso em tempo real no telemóvel do cliente com o motivo)
+- Dados da loja (nome, contactos, endereço, horário, taxas, nota) preenchidos pelo administrador ou perfis criados por ele, visíveis de imediato na app do cliente
+- Novos clientes registados ganham perfil de login (senha própria ou telefone como senha inicial)

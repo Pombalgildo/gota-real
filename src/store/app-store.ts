@@ -2,13 +2,19 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CartItem, Customer, Product } from '@/lib/types'
+import type { CartItem, Customer, Product, User } from '@/lib/types'
 
 export type AppMode = 'cliente' | 'central' | 'motoboy'
 export type CustomerTab = 'inicio' | 'produtos' | 'pedidos' | 'feedback' | 'perfil'
 
+export interface AuthSession {
+  token: string
+  user: User
+}
+
 interface AppState {
-  // sessão
+  // sessão de entrada (login por perfil)
+  auth: AuthSession | null
   customer: Customer | null
   mode: AppMode
   courierId: string | null
@@ -22,12 +28,15 @@ interface AppState {
   cart: CartItem[]
 
   // acções
+  setAuth: (a: AuthSession | null) => void
   setCustomer: (c: Customer | null) => void
   setMode: (m: AppMode) => void
   setCourierId: (id: string | null) => void
   setTab: (t: CustomerTab) => void
   setCheckoutOpen: (open: boolean) => void
   openTracking: (orderId: string | null) => void
+  // termina a sessão e limpa o estado deste dispositivo
+  logout: () => void
 
   addToCart: (product: Product, qty?: number) => void
   removeFromCart: (productId: string) => void
@@ -41,6 +50,7 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
+      auth: null,
       customer: null,
       mode: 'cliente',
       courierId: null,
@@ -49,6 +59,7 @@ export const useAppStore = create<AppState>()(
       trackingOrderId: null,
       cart: [],
 
+      setAuth: (auth) => set({ auth }),
       setCustomer: (customer) => set({ customer }),
       setMode: (mode) => set({ mode }),
       setCourierId: (courierId) => set({ courierId }),
@@ -56,6 +67,17 @@ export const useAppStore = create<AppState>()(
       setCheckoutOpen: (checkoutOpen) => set({ checkoutOpen }),
       openTracking: (trackingOrderId) =>
         set({ trackingOrderId, tab: trackingOrderId ? 'pedidos' : 'inicio' }),
+      logout: () =>
+        set({
+          auth: null,
+          customer: null,
+          mode: 'cliente',
+          courierId: null,
+          tab: 'inicio',
+          checkoutOpen: false,
+          trackingOrderId: null,
+          cart: [],
+        }),
 
       addToCart: (product, qty = 1) =>
         set((state) => {
@@ -103,6 +125,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'gota-real-store',
       partialize: (state) => ({
+        auth: state.auth,
         customer: state.customer,
         mode: state.mode,
         courierId: state.courierId,

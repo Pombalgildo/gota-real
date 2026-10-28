@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useAppStore, formatDateTime } from '@/store/app-store'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
+import { LogoutButton } from '@/components/app/LoginDialog'
 import { updateCustomer } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import { useCustomerOrders } from '@/components/app/hooks'
+import { useCustomerOrders, useStoreConfig } from '@/components/app/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,8 +15,8 @@ import { Separator } from '@/components/ui/separator'
 import {
   Bike,
   Building2,
+  Clock,
   Loader2,
-  LogOut,
   Mail,
   MapPin,
   Pencil,
@@ -26,9 +27,10 @@ import {
 } from 'lucide-react'
 
 export function ProfileView() {
-  const { customer, setCustomer, setMode, mode } = useAppStore()
+  const { customer, setCustomer } = useAppStore()
   const { toast } = useToast()
   const { orders } = useCustomerOrders(customer?.id)
+  const { store } = useStoreConfig()
 
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(customer?.name ?? '')
@@ -231,33 +233,56 @@ export function ProfileView() {
         )}
       </div>
 
-      {/* área da empresa */}
-      <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-        <h3 className="flex items-center gap-1.5 text-sm font-black text-navy">
-          <Building2 className="h-4 w-4 text-primary" /> Área da empresa
-        </h3>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Acesso para a equipa Gota REAL (modo demonstração).
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <Button
-            variant={mode === 'central' ? 'default' : 'outline'}
-            className="h-16 flex-col gap-1 rounded-2xl py-2"
-            onClick={() => setMode('central')}
-          >
-            <Building2 className="h-6 w-6" />
-            <span className="text-xs font-black">Central</span>
-          </Button>
-          <Button
-            variant={mode === 'motoboy' ? 'default' : 'outline'}
-            className="h-16 flex-col gap-1 rounded-2xl py-2"
-            onClick={() => setMode('motoboy')}
-          >
-            <Bike className="h-6 w-6" />
-            <span className="text-xs font-black">Motoboy</span>
-          </Button>
+      {/* dados da loja (preenchidos pela equipa na Central) */}
+      {store && (
+        <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+          <h3 className="flex items-center gap-1.5 text-sm font-black text-navy">
+            <Building2 className="h-4 w-4 text-primary" /> {store.name}
+          </h3>
+          {store.tagline && (
+            <p className="mt-0.5 text-xs italic text-muted-foreground">{store.tagline}</p>
+          )}
+          <div className="mt-2.5 space-y-1.5 text-xs text-foreground">
+            {store.phone && (
+              <p className="flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5 text-primary" /> {store.phone}
+              </p>
+            )}
+            {store.whatsapp && (
+              <p className="flex items-center gap-1.5">
+                <Bike className="h-3.5 w-3.5 text-primary" /> WhatsApp: {store.whatsapp}
+              </p>
+            )}
+            {store.address && (
+              <p className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 text-primary" /> {store.address}
+              </p>
+            )}
+            {store.hours && (
+              <p className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-primary" /> {store.hours}
+              </p>
+            )}
+            {store.deliveryFeeKz > 0 && (
+              <p className="flex items-center gap-1.5">
+                <Bike className="h-3.5 w-3.5 text-primary" /> Taxa de entrega:{' '}
+                {store.deliveryFeeKz.toLocaleString('pt-AO')} Kz
+              </p>
+            )}
+            {store.minOrderKz > 0 && (
+              <p className="flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Pedido mínimo:{' '}
+                {store.minOrderKz.toLocaleString('pt-AO')} Kz
+              </p>
+            )}
+          </div>
+          {store.note && (
+            <p className="mt-2 rounded-xl bg-secondary/70 p-2.5 text-[11px] leading-snug text-secondary-foreground">
+              {store.note}
+            </p>
+          )}
         </div>
-      </div>
+      )}
 
       {/* segurança / sair */}
       <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-4 shadow-sm">
@@ -268,16 +293,7 @@ export function ProfileView() {
             <p className="text-[10px] text-muted-foreground">dados guardados no seu dispositivo</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          className="h-10 rounded-2xl border-red-200 px-4 text-xs font-black text-red-600 hover:bg-red-50 hover:text-red-700"
-          onClick={() => {
-            setCustomer(null)
-            setMode('cliente')
-          }}
-        >
-          <LogOut className="h-4 w-4" /> Sair
-        </Button>
+        <LogoutButton label="Sair" />
       </div>
 
       <p className="flex items-center justify-center gap-1 pb-2 text-center text-[10px] text-muted-foreground">

@@ -3,24 +3,18 @@
 import { useState } from 'react'
 import { BrandLogo, BrandWordmark, DropCrownIcon } from '@/components/app/Brand'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
+import { LoginDialog } from '@/components/app/LoginDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAppStore } from '@/store/app-store'
-import { registerCustomer, loginCustomer } from '@/lib/api'
+import { registerCustomer } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   Bike,
   CreditCard,
   Droplets,
+  KeyRound,
   Loader2,
   LogIn,
   MapPin,
@@ -32,25 +26,33 @@ import {
 type Step = 'boas-vindas' | 'dados' | 'localizacao'
 
 export function OnboardingView() {
-  const { setCustomer, setMode } = useAppStore()
+  const { setCustomer } = useAppStore()
   const { toast } = useToast()
 
   const [step, setStep] = useState<Step>('boas-vindas')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [location, setLocation] = useState<PickedLocation | null>(null)
   const [locationMode, setLocationMode] = useState<'exata' | 'auto'>('exata')
   const [submitting, setSubmitting] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
-  const [loginPhone, setLoginPhone] = useState('')
-  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginPrefill, setLoginPrefill] = useState<string | undefined>(undefined)
 
   async function handleRegister() {
     if (!name.trim() || !phone.trim()) {
       toast({
         title: 'Dados incompletos',
         description: 'Preencha o nome e o número de telefone.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (password.trim() && password.trim().length < 4) {
+      toast({
+        title: 'Senha muito curta',
+        description: 'A senha deve ter pelo menos 4 caracteres.',
         variant: 'destructive',
       })
       return
@@ -69,6 +71,7 @@ export function OnboardingView() {
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
+        password: password.trim() || undefined,
         address: location.address ?? '',
         latitude: location.lat,
         longitude: location.lng,
@@ -81,7 +84,9 @@ export function OnboardingView() {
       setCustomer(customer)
       toast({
         title: `Bem-vindo(a), ${customer.name.split(' ')[0]}! 💧`,
-        description: 'A sua conta Gota REAL foi criada com sucesso.',
+        description: password.trim()
+          ? 'A sua conta foi criada. Entre depois com o telefone e a sua senha.'
+          : 'A sua conta foi criada. A senha inicial é o seu número de telefone.',
       })
     } catch (err) {
       toast({
@@ -91,28 +96,6 @@ export function OnboardingView() {
       })
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  async function handleLogin() {
-    if (!loginPhone.trim()) return
-    setLoginLoading(true)
-    try {
-      const { customer } = await loginCustomer(loginPhone.trim())
-      setCustomer(customer)
-      setLoginOpen(false)
-      toast({
-        title: `Olá de novo, ${customer.name.split(' ')[0]}! 💧`,
-        description: 'A sua conta foi carregada.',
-      })
-    } catch {
-      toast({
-        title: 'Conta não encontrada',
-        description: 'Verifique o número ou crie uma nova conta.',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoginLoading(false)
     }
   }
 
@@ -163,14 +146,17 @@ export function OnboardingView() {
                 ))}
               </ul>
 
-              {/* ---------- ACESSO DA EQUIPA: CENTRAL (ADMIN) E MOTOBOY ---------- */}
+              {/* ---------- ACESSO DA EQUIPA: entrada com perfil e senha ---------- */}
               <div className="glass-card rounded-2xl p-4 text-white">
                 <p className="text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#BDE3F5]">
                   Acesso da equipa Gota REAL
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2.5">
                   <button
-                    onClick={() => setMode('central')}
+                    onClick={() => {
+                      setLoginPrefill('admin@gotareal.ao')
+                      setLoginOpen(true)
+                    }}
                     className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-white/95 p-3 shadow-md transition-all duration-150 hover:bg-white active:scale-[0.97]"
                     aria-label="Entrar no painel da Central (Administrador)"
                   >
@@ -181,7 +167,10 @@ export function OnboardingView() {
                     <span className="text-[10px] font-semibold leading-tight text-muted-foreground">Administrador</span>
                   </button>
                   <button
-                    onClick={() => setMode('motoboy')}
+                    onClick={() => {
+                      setLoginPrefill('motoboy@gotareal.ao')
+                      setLoginOpen(true)
+                    }}
                     className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-white/95 p-3 shadow-md transition-all duration-150 hover:bg-white active:scale-[0.97]"
                     aria-label="Entrar no painel do Motoboy (Entregador)"
                   >
@@ -193,7 +182,7 @@ export function OnboardingView() {
                   </button>
                 </div>
                 <p className="mt-2.5 text-center text-[10px] leading-snug text-[#cfe7f8]">
-                  Receba pedidos, gerencie a loja e faça entregas com GPS.
+                  Entrada com perfil e senha — o administrador cria os perfis da equipa.
                 </p>
               </div>
             </div>
@@ -238,6 +227,22 @@ export function OnboardingView() {
                   inputMode="email"
                   autoComplete="email"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ob-password" className="flex items-center gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5 text-primary" /> Senha de entrada (opcional)
+                </Label>
+                <Input
+                  id="ob-password"
+                  type="password"
+                  placeholder="Mínimo 4 caracteres"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  Para entrar depois na app. Se deixar vazio, a senha inicial é o seu telefone.
+                </p>
               </div>
             </div>
           )}
@@ -311,11 +316,14 @@ export function OnboardingView() {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => setLoginOpen(true)}
+                onClick={() => {
+                  setLoginPrefill(undefined)
+                  setLoginOpen(true)
+                }}
                 className="h-12 w-full rounded-2xl text-sm font-bold text-white/90 hover:bg-white/10 hover:text-white"
               >
                 <LogIn className="h-5 w-5" />
-                Já tenho conta (entrar com telefone)
+                Já tenho conta (entrar com perfil e senha)
               </Button>
             </>
           )}
@@ -365,38 +373,12 @@ export function OnboardingView() {
         </div>
       </div>
 
-      {/* dialog de login */}
-      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-navy">Entrar na minha conta</DialogTitle>
-            <DialogDescription>
-              Introduza o número de telefone usado no cadastro.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="login-phone">Telefone</Label>
-            <Input
-              id="login-phone"
-              placeholder="Ex.: 923 456 789"
-              value={loginPhone}
-              onChange={(e) => setLoginPhone(e.target.value)}
-              inputMode="tel"
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={handleLogin}
-              disabled={loginLoading || !loginPhone.trim()}
-              className="w-full font-bold"
-            >
-              {loginLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-              Entrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* dialog de login por perfil (cliente, administrador e motoboy) */}
+      <LoginDialog
+        open={loginOpen}
+        onOpenChange={setLoginOpen}
+        prefillIdentifier={loginPrefill}
+      />
     </div>
   )
 }

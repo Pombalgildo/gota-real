@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { ensureSeed } from '@/lib/seed'
+import { hashPassword, fallbackEmail } from '@/lib/auth'
 
-// POST /api/customers - registar novo cliente
+// POST /api/customers - registar novo cliente (cria também o PERFIL DE LOGIN)
 export async function POST(req: NextRequest) {
   try {
+    await ensureSeed()
     const body = await req.json()
-    const { name, phone, email, address, latitude, longitude, locationSource, locationNote } = body
+    const {
+      name,
+      phone,
+      email,
+      password,
+      address,
+      latitude,
+      longitude,
+      locationSource,
+      locationNote,
+    } = body
 
     if (!name || !phone) {
       return NextResponse.json(
@@ -17,8 +30,9 @@ export async function POST(req: NextRequest) {
     const normalizedPhone = String(phone).trim()
 
     const existing = await db.customer.findUnique({ where: { phone: normalizedPhone } })
+    let customer
     if (existing) {
-      const updated = await db.customer.update({
+      customer = await db.customer.update({
         where: { phone: normalizedPhone },
         data: {
           name,
@@ -30,22 +44,54 @@ export async function POST(req: NextRequest) {
           locationNote: locationNote ?? existing.locationNote,
         },
       })
-      return NextResponse.json({ customer: updated, updatedExisting: true })
+    } else {
+      customer = await db.customer.create({
+        data: {
+          name,
+          phone: normalizedPhone,
+          email: email ?? null,
+          address: address ?? '',
+          latitude: latitude ?? null,
+          longitude: longitude ?? null,
+          locationSource: locationSource ?? 'auto',
+          locationNote: locationNote ?? null,
+        },
+      })
     }
 
-    const customer = await db.customer.create({
-      data: {
-        name,
-        phone: normalizedPhone,
-        email: email ?? null,
-        address: address ?? '',
-        latitude: latitude ?? null,
-        longitude: longitude ?? null,
-        locationSource: locationSource ?? 'auto',
-        locationNote: locationNote ?? null,
-      },
-    })
-    return NextResponse.json({ customer })
+    // cria o perfil de entrada (login) do cliente, se ainda não existir
+    const existingUser = await db.user.findUnique({ where: { customerId: customer.id } })
+    if (!existingUser) {
+      const loginEmail =
+        (typeof email === 'string' && email.trim()) || fallbackEmail(normalizedPhone)
+      try {
+        await db.user.create({
+          data: {
+            name: customer.name,
+            email: loginEmail.toLowerCase(),
+            phone: normalizedPhone,
+            // sem senha definida, o telefone serve de senha inicial
+            password: hashPassword(password || normalizedPhone),
+            role: 'CLIENTE',
+            customerId: customer.id,
+          },
+        })
+      } catch {
+        // e-mail já usado por outro perfil — usa o e-mail interno do telefone
+        await db.user.create({
+          data: {
+            name: customer.name,
+            email: fallbackEmail(normalizedPhone),
+            phone: normalizedPhone,
+            password: hashPassword(password || normalizedPhone),
+            role: 'CLIENTE',
+            customerId: customer.id,
+          },
+        })
+      }
+    }
+
+    return NextResponse.json({ customer, updatedExisting: !!existing })
   } catch (error) {
     console.error('[api/customers] erro:', error)
     return NextResponse.json({ error: 'Erro interno ao registar cliente.' }, { status: 500 })
@@ -55,6 +101,7 @@ export async function POST(req: NextRequest) {
 // GET /api/customers?phone=... - entrada de cliente existente
 export async function GET(req: NextRequest) {
   try {
+    await ensureSeed()
     const phone = req.nextUrl.searchParams.get('phone')
     if (!phone) {
       return NextResponse.json({ error: 'Parâmetro phone é obrigatório.' }, { status: 400 })

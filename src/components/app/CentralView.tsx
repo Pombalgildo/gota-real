@@ -2,12 +2,22 @@
 
 import { useMemo, useState } from 'react'
 import { useAppStore, formatKz, formatLiters, formatTime, formatDateTime, durationMinutes } from '@/store/app-store'
-import { useAllOrders, useFeedback, useCouriers, useProducts } from '@/components/app/hooks'
+import { useAllOrders, useFeedback, useCouriers, useProducts, useUsers, useStoreConfig } from '@/components/app/hooks'
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { OrderTimeline } from '@/components/app/OrderTimeline'
 import { ProductPhoto } from '@/components/app/ProductPhoto'
 import { resizeImageToDataUrl } from '@/lib/image'
-import { orderAction, respondFeedback, updateProduct, createProduct, createCourier } from '@/lib/api'
+import { LogoutButton } from '@/components/app/LoginDialog'
+import {
+  orderAction,
+  respondFeedback,
+  updateProduct,
+  createProduct,
+  createUser as apiCreateUser,
+  updateUser as apiUpdateUser,
+  deleteUser as apiDeleteUser,
+  updateStore as apiUpdateStore,
+} from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,29 +28,39 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import type { Order, Product } from '@/lib/types'
+import type { Order, Product, User } from '@/lib/types'
+import { ROLE_LABEL } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
   ArrowLeft,
+  Ban,
   Bike,
+  Building2,
   Camera,
   Check,
   ClipboardList,
+  Clock,
   ImagePlus,
+  KeyRound,
   Loader2,
+  MapPin,
   MessageSquareWarning,
   Package,
   Pencil,
   Phone,
   Plus,
   Reply,
+  Save,
   Send,
+  ShieldCheck,
   Store,
   Timer,
   TrendingUp,
   Truck,
   Trash2,
   User,
+  UserCog,
+  Users,
   Warehouse,
   XCircle,
 } from 'lucide-react'
@@ -55,21 +75,24 @@ const FILTERS = [
 ]
 
 export function CentralView() {
+  const { auth } = useAppStore()
+  const adminName = auth?.user.name ?? 'Administrador'
+
   return (
     <div className="min-h-dvh bg-background pb-24">
       {/* cabeçalho */}
       <header className="gota-gradient px-4 pb-16 pt-5 text-white shadow-lg">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <BackToCustomerButton light />
           <div className="flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
-              painel operativo
+              painel operativo · {adminName}
             </p>
             <h1 className="text-lg font-black leading-tight">Central Gota REAL 👑</h1>
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
             <span className="live-dot" /> ao vivo
           </span>
+          <LogoutButton light label="Sair" />
         </div>
       </header>
 
@@ -78,21 +101,6 @@ export function CentralView() {
         <CentralTabs />
       </div>
     </div>
-  )
-}
-
-function BackToCustomerButton({ light = false }: { light?: boolean }) {
-  const { setMode } = useAppStore()
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setMode('cliente')}
-      className={cn(light ? 'text-white hover:bg-white/15 hover:text-white' : '')}
-      aria-label="Voltar ao app do cliente"
-    >
-      <ArrowLeft className="h-5 w-5" />
-    </Button>
   )
 }
 
@@ -142,18 +150,21 @@ function CentralStats() {
 function CentralTabs() {
   return (
     <Tabs defaultValue="pedidos">
-      <TabsList className="grid w-full grid-cols-4 rounded-xl bg-secondary p-1">
-        <TabsTrigger value="pedidos" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
-          <ClipboardList className="mr-1 h-3.5 w-3.5" /> Pedidos
+      <TabsList className="grid w-full grid-cols-5 rounded-xl bg-secondary p-1">
+        <TabsTrigger value="pedidos" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
+          <ClipboardList className="mr-0.5 h-3.5 w-3.5" /> Pedidos
         </TabsTrigger>
-        <TabsTrigger value="feedback" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
-          <MessageSquareWarning className="mr-1 h-3.5 w-3.5" /> Mensagens
+        <TabsTrigger value="feedback" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
+          <MessageSquareWarning className="mr-0.5 h-3.5 w-3.5" /> Mensagens
         </TabsTrigger>
-        <TabsTrigger value="produtos" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
-          <Store className="mr-1 h-3.5 w-3.5" /> Loja
+        <TabsTrigger value="produtos" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
+          <Store className="mr-0.5 h-3.5 w-3.5" /> Loja
         </TabsTrigger>
-        <TabsTrigger value="equipa" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
-          <Bike className="mr-1 h-3.5 w-3.5" /> Equipa
+        <TabsTrigger value="perfis" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
+          <Users className="mr-0.5 h-3.5 w-3.5" /> Perfis
+        </TabsTrigger>
+        <TabsTrigger value="ajustes" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
+          <Building2 className="mr-0.5 h-3.5 w-3.5" /> Ajustes
         </TabsTrigger>
       </TabsList>
 
@@ -166,8 +177,11 @@ function CentralTabs() {
       <TabsContent value="produtos" className="mt-4">
         <ProductsPanel />
       </TabsContent>
-      <TabsContent value="equipa" className="mt-4">
-        <TeamPanel />
+      <TabsContent value="perfis" className="mt-4">
+        <UsersPanel />
+      </TabsContent>
+      <TabsContent value="ajustes" className="mt-4">
+        <StoreSettingsPanel />
       </TabsContent>
     </Tabs>
   )
@@ -858,36 +872,391 @@ function ProductFormDialog({
   )
 }
 
-// ---------------- Equipa ----------------
-function TeamPanel() {
-  const { couriers, reload } = useCouriers()
+// ---------------- Perfis (gestão do administrador) ----------------
+function UsersPanel() {
+  const { auth } = useAppStore()
+  const token = auth?.token ?? null
+  const { users, loading, reload } = useUsers(token)
   const { toast } = useToast()
+
   const [addOpen, setAddOpen] = useState(false)
+  const [editing, setEditing] = useState<User | null>(null)
+  const [banning, setBanning] = useState<User | null>(null)
+  const [deleting, setDeleting] = useState<User | null>(null)
+
+  const workers = users.filter((u) => u.role === 'ADMIN' || u.role === 'MOTOBOY')
+  const clients = users.filter((u) => u.role === 'CLIENTE')
+
+  async function act(promise: Promise<unknown>, okMessage: string) {
+    try {
+      await promise
+      reload()
+      toast({ title: okMessage })
+    } catch (err) {
+      toast({
+        title: 'Acção falhou',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  if (loading) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">a carregar perfis…</p>
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* instrução */}
+      <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-secondary/50 p-3.5">
+        <p className="flex items-center gap-2 text-sm font-black text-navy">
+          <UserCog className="h-4.5 w-4.5 text-primary" /> Gestão de perfis
+        </p>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">
+          Crie perfis de <b>trabalhadores</b> (administradores e motoboys com senha própria),
+          <b> elimine qualquer perfil</b> e <b>bane clientes por má conduta</b>.
+          Os banned ficam impedidos de fazer pedidos.
+        </p>
+      </div>
+
+      {/* ---------- trabalhadores ---------- */}
+      <section className="space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="flex items-center gap-1.5 text-sm font-black text-navy">
+            <Users className="h-4 w-4 text-primary" /> Trabalhadores ({workers.length})
+          </h3>
+          <Button size="sm" className="h-9 rounded-xl font-bold" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" /> Criar perfil
+          </Button>
+        </div>
+
+        {workers.map((u) => (
+          <UserRow
+            key={u.id}
+            user={u}
+            isSelf={u.id === auth?.user.id}
+            onEdit={() => setEditing(u)}
+            onBan={u.role === 'CLIENTE' ? () => setBanning(u) : undefined}
+            onDelete={() => setDeleting(u)}
+          />
+        ))}
+      </section>
+
+      {/* ---------- clientes ---------- */}
+      <section className="space-y-2.5">
+        <h3 className="flex items-center gap-1.5 text-sm font-black text-navy">
+          <User className="h-4 w-4 text-primary" /> Clientes ({clients.length})
+        </h3>
+        {clients.length === 0 ? (
+          <p className="rounded-2xl border-2 border-dashed border-input bg-white/60 p-4 text-center text-xs text-muted-foreground">
+            Ainda sem clientes registados com perfil.
+          </p>
+        ) : (
+          clients.map((u) => (
+            <UserRow
+              key={u.id}
+              user={u}
+              isSelf={false}
+              onEdit={() => setEditing(u)}
+              onBan={() => setBanning(u)}
+              onDelete={() => setDeleting(u)}
+            />
+          ))
+        )}
+      </section>
+
+      {/* dialog: criar perfil de trabalhador */}
+      <CreateUserDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        token={token!}
+        onSaved={() => {
+          reload()
+          setAddOpen(false)
+        }}
+      />
+
+      {/* dialog: editar perfil */}
+      {editing && (
+        <EditUserDialog
+          user={editing}
+          token={token!}
+          onOpenChange={(o) => !o && setEditing(null)}
+          onSaved={() => {
+            reload()
+            setEditing(null)
+          }}
+        />
+      )}
+
+      {/* dialog: banir cliente */}
+      {banning && (
+        <BanUserDialog
+          user={banning}
+          token={token!}
+          onClose={() => setBanning(null)}
+          onDone={() => {
+            reload()
+            setBanning(null)
+          }}
+        />
+      )}
+
+      {/* dialog: eliminar perfil */}
+      {deleting && (
+        <Dialog open onOpenChange={(o) => !o && setDeleting(null)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-red-700">Eliminar perfil</DialogTitle>
+              <DialogDescription>
+                Elimina o perfil de <b>{deleting.name}</b> ({ROLE_LABEL[deleting.role] ?? deleting.role}).
+                {deleting.role === 'CLIENTE'
+                  ? ' O histórico de pedidos fica guardado para a faturação.'
+                  : ''}
+                Esta acção não pode ser desfeita.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-row gap-2">
+              <Button variant="outline" className="flex-1 font-bold" onClick={() => setDeleting(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 font-bold"
+                onClick={() => {
+                  act(apiDeleteUser(token!, deleting.id), `Perfil de ${deleting.name} eliminado`)
+                  setDeleting(null)
+                }}
+              >
+                <Trash2 className="h-4 w-4" /> Eliminar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  )
+}
+
+/** Linha de um perfil na lista. */
+function UserRow({
+  user,
+  isSelf,
+  onEdit,
+  onBan,
+  onDelete,
+}: {
+  user: User
+  isSelf: boolean
+  onEdit: () => void
+  onBan?: () => void
+  onDelete: () => void
+}) {
+  const { auth } = useAppStore()
+  const token = auth?.token ?? null
+  const { reload } = useUsers(token)
+  const { toast } = useToast()
+  const [busy, setBusy] = useState(false)
+
+  async function toggleActive() {
+    setBusy(true)
+    try {
+      await apiUpdateUser(token!, user.id, { active: !user.active })
+      reload()
+      toast({
+        title: user.active
+          ? `Perfil de ${user.name} desactivado`
+          : `Perfil de ${user.name} reactivado ✅`,
+      })
+    } catch (err) {
+      toast({
+        title: 'Acção falhou',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const roleBadge =
+    user.role === 'ADMIN'
+      ? 'border-gold/50 bg-gold/15 text-[#6B5410]'
+      : user.role === 'MOTOBOY'
+        ? 'border-sky-200 bg-sky-50 text-sky-700'
+        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+
+  return (
+    <div className="rounded-2xl border border-border bg-white p-3.5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md',
+            user.banned ? 'bg-red-500' : 'gota-gradient'
+          )}
+        >
+          {user.role === 'ADMIN' ? (
+            <Warehouse className="h-5 w-5" />
+          ) : user.role === 'MOTOBOY' ? (
+            <Bike className="h-5 w-5" />
+          ) : (
+            <User className="h-5 w-5" />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 truncate text-sm font-black text-navy">
+            {user.name}
+            {isSelf && (
+              <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[9px] font-black text-primary">
+                eu
+              </span>
+            )}
+          </p>
+          <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {user.phone || '—'}
+            {user.courier ? ` · ${user.courier.vehicle} (${user.courier.plate})` : ''}
+            {user.role === 'CLIENTE' && user.customer
+              ? ` · ${user.customer._count?.orders ?? 0} pedidos`
+              : ''}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <Badge variant="outline" className={cn('text-[10px]', roleBadge)}>
+            {ROLE_LABEL[user.role] ?? user.role}
+          </Badge>
+          {user.banned ? (
+            <Badge variant="outline" className="border-red-200 bg-red-50 text-[10px] text-red-700">
+              banido
+            </Badge>
+          ) : !user.active ? (
+            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-700">
+              desactivado
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+
+      {user.banned && user.banReason && (
+        <p className="mt-2 rounded-lg bg-red-50 p-2 text-[11px] font-semibold text-red-700">
+          Motivo do banimento: “{user.banReason}”
+        </p>
+      )}
+
+      {/* acções do administrador */}
+      <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-border pt-2.5">
+        <Button size="sm" variant="outline" className="h-8 rounded-full px-3 text-xs font-bold" onClick={onEdit}>
+          <Pencil className="h-3.5 w-3.5" /> Editar
+        </Button>
+        {onBan &&
+          (user.banned ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-full border-emerald-200 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                try {
+                  await apiUpdateUser(token!, user.id, { banned: false, banReason: '' })
+                  reload()
+                  toast({ title: `${user.name} desbanido — já pode voltar a pedir ✅` })
+                } catch {
+                  toast({ title: 'Acção falhou', variant: 'destructive' })
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Desbanir
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-full border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50"
+              onClick={onBan}
+            >
+              <Ban className="h-3.5 w-3.5" /> Banir
+            </Button>
+          ))}
+        {user.role !== 'CLIENTE' && !isSelf && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 rounded-full px-3 text-xs font-bold"
+            disabled={busy}
+            onClick={toggleActive}
+          >
+            {user.active ? 'Desactivar' : 'Reactivar'}
+          </Button>
+        )}
+        {!isSelf && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto h-8 rounded-full px-3 text-xs font-bold text-red-600 hover:bg-red-50"
+            onClick={onDelete}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Eliminar
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Dialog: criar perfil de trabalhador (administrador ou motoboy). */
+function CreateUserDialog({
+  open,
+  onOpenChange,
+  token,
+  onSaved,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  token: string
+  onSaved: () => void
+}) {
+  const { toast } = useToast()
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState<'ADMIN' | 'MOTOBOY'>('MOTOBOY')
   const [vehicle, setVehicle] = useState('')
   const [plate, setPlate] = useState('')
   const [saving, setSaving] = useState(false)
 
-  async function addCourier() {
-    if (!name.trim()) return
+  async function save() {
+    if (!name.trim() || !email.trim() || password.length < 4) {
+      toast({
+        title: 'Dados incompletos',
+        description: 'Preencha nome, e-mail e senha (mínimo 4 caracteres).',
+        variant: 'destructive',
+      })
+      return
+    }
     setSaving(true)
     try {
-      await createCourier({
+      await apiCreateUser(token, {
         name: name.trim(),
+        email: email.trim(),
         phone: phone.trim(),
-        vehicle: vehicle.trim() || 'Mota',
+        password,
+        role,
+        vehicle: vehicle.trim(),
         plate: plate.trim(),
-        latitude: -8.847,
-        longitude: 13.241,
       })
-      setName(''); setPhone(''); setVehicle(''); setPlate('')
-      setAddOpen(false)
-      reload()
-      toast({ title: 'Motoboy adicionado à equipa 🛵' })
+      setName(''); setEmail(''); setPhone(''); setPassword(''); setVehicle(''); setPlate('')
+      onSaved()
+      toast({
+        title: `Perfil de ${role === 'ADMIN' ? 'administrador' : 'motoboy'} criado ✅`,
+        description: `${email.trim()} já pode entrar com a senha definida.`,
+      })
     } catch (err) {
       toast({
-        title: 'Erro ao adicionar',
+        title: 'Erro ao criar perfil',
         description: err instanceof Error ? err.message : 'Tente novamente.',
         variant: 'destructive',
       })
@@ -897,72 +1266,426 @@ function TeamPanel() {
   }
 
   return (
-    <div className="space-y-3">
-      <Button className="h-10 w-full rounded-xl font-bold" onClick={() => setAddOpen(true)}>
-        <Plus className="h-4 w-4" /> Adicionar motoboy
-      </Button>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Criar perfil de trabalhador</DialogTitle>
+          <DialogDescription>
+            O novo perfil entra na app com o seu próprio e-mail e senha.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          {/* tipo de perfil */}
+          <div className="grid grid-cols-2 gap-2">
+            {(['MOTOBOY', 'ADMIN'] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRole(r)}
+                className={`rounded-xl border-2 p-3 text-center transition-all ${
+                  role === r ? 'border-primary bg-secondary/60 shadow-sm' : 'border-border bg-white hover:border-input'
+                }`}
+              >
+                {r === 'MOTOBOY' ? (
+                  <Bike className="mx-auto h-6 w-6 text-primary" />
+                ) : (
+                  <Warehouse className="mx-auto h-6 w-6 text-primary" />
+                )}
+                <p className="mt-1 text-xs font-black text-navy">
+                  {r === 'MOTOBOY' ? 'MOTOBOY' : 'ADMINISTRADOR'}
+                </p>
+                <p className="text-[10px] leading-tight text-muted-foreground">
+                  {r === 'MOTOBOY' ? 'faz entregas com GPS' : 'geride tudo como você'}
+                </p>
+              </button>
+            ))}
+          </div>
 
-      {couriers.map((c) => (
-        <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3.5 shadow-sm">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl gota-gradient text-white shadow-md">
-            <User className="h-6 w-6" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-black text-navy">{c.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {c.phone || '—'} · {c.vehicle} {c.plate && `(${c.plate})`}
-            </p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              {c.latitude != null ? `GPS: ${c.latitude.toFixed(4)}, ${c.longitude?.toFixed(4)}` : 'sem posição'}
+          <div className="space-y-1.5">
+            <Label htmlFor="nu-name">Nome completo *</Label>
+            <Input id="nu-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Manuel Neto" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nu-email">E-mail de entrada *</Label>
+            <Input id="nu-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ex.: manuel@gotareal.ao" inputMode="email" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nu-phone">Telefone</Label>
+            <Input id="nu-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="923 000 333" inputMode="tel" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nu-password" className="flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5 text-primary" /> Senha de entrada *
+            </Label>
+            <Input
+              id="nu-password"
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 4 caracteres"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Entregue esta senha ao trabalhador para ele entrar na app.
             </p>
           </div>
-          <span
-            className={cn(
-              'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-              c.available
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                : 'border-amber-200 bg-amber-50 text-amber-700'
-            )}
-          >
-            {c.available ? 'disponível' : `em entrega (${c.orders?.length ?? 0})`}
-          </span>
-        </div>
-      ))}
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Adicionar motoboy</DialogTitle>
-            <DialogDescription>O novo motoboy passa a receber entregas no painel dele.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="cr-name">Nome</Label>
-              <Input id="cr-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Manuel Neto" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cr-phone">Telefone</Label>
-              <Input id="cr-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="923 000 333" inputMode="tel" />
-            </div>
+          {role === 'MOTOBOY' && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label htmlFor="cr-vehicle">Veículo</Label>
-                <Input id="cr-vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="Mota" />
+                <Label htmlFor="nu-vehicle">Veículo</Label>
+                <Input id="nu-vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="Mota" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="cr-plate">Matrícula</Label>
-                <Input id="cr-plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="LD-0000-AA" />
+                <Label htmlFor="nu-plate">Matrícula</Label>
+                <Input id="nu-plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="LD-0000-AA" />
               </div>
             </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button onClick={save} disabled={saving} className="h-11 w-full rounded-xl font-black">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            CRIAR PERFIL
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Dialog: editar um perfil (dados, senha, tipo). */
+function EditUserDialog({
+  user,
+  token,
+  onOpenChange,
+  onSaved,
+}: {
+  user: User
+  token: string
+  onOpenChange: (o: boolean) => void
+  onSaved: () => void
+}) {
+  const { toast } = useToast()
+  const [name, setName] = useState(user.name)
+  const [email, setEmail] = useState(user.email)
+  const [phone, setPhone] = useState(user.phone ?? '')
+  const [password, setPassword] = useState('')
+  const [vehicle, setVehicle] = useState(user.courier?.vehicle ?? '')
+  const [plate, setPlate] = useState(user.courier?.plate ?? '')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (!name.trim() || !email.trim()) {
+      toast({ title: 'Nome e e-mail são obrigatórios.', variant: 'destructive' })
+      return
+    }
+    setSaving(true)
+    try {
+      await apiUpdateUser(token, user.id, {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        ...(password.trim() ? { password: password.trim() } : {}),
+        ...(user.courier ? { vehicle: vehicle.trim(), plate: plate.trim() } : {}),
+      })
+      onSaved()
+      toast({
+        title: 'Perfil actualizado ✅',
+        description: password.trim() ? 'A nova senha já está activa.' : undefined,
+      })
+    } catch (err) {
+      toast({
+        title: 'Erro ao guardar',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Editar perfil — {ROLE_LABEL[user.role] ?? user.role}</DialogTitle>
+          <DialogDescription>
+            {user.role === 'CLIENTE'
+              ? 'Dados do perfil de cliente.'
+              : 'Dados do trabalhador. A senha só muda se preencher uma nova.'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="eu-name">Nome</Label>
+            <Input id="eu-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <DialogFooter>
-            <Button onClick={addCourier} disabled={saving || !name.trim()} className="w-full font-bold">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Adicionar à equipa
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="space-y-1.5">
+            <Label htmlFor="eu-email">E-mail de entrada</Label>
+            <Input id="eu-email" value={email} onChange={(e) => setEmail(e.target.value)} inputMode="email" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="eu-phone">Telefone</Label>
+            <Input id="eu-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="eu-password" className="flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5 text-primary" /> Nova senha (opcional)
+            </Label>
+            <Input
+              id="eu-password"
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Deixe vazio para manter a actual"
+            />
+          </div>
+          {user.courier && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="eu-vehicle">Veículo</Label>
+                <Input id="eu-vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="eu-plate">Matrícula</Label>
+                <Input id="eu-plate" value={plate} onChange={(e) => setPlate(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button onClick={save} disabled={saving} className="h-11 w-full rounded-xl font-black">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            GUARDAR ALTERAÇÕES
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Dialog: banir cliente por má conduta (com motivo). */
+function BanUserDialog({
+  user,
+  token,
+  onClose,
+  onDone,
+}: {
+  user: User
+  token: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const { toast } = useToast()
+  const [reason, setReason] = useState('Má conduta')
+  const [custom, setCustom] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const REASONS = ['Má conduta', 'Não pagou entregas', 'Falsos pedidos', 'Abuso verbal à equipa']
+
+  async function confirmBan() {
+    const finalReason = custom.trim() || reason
+    setSaving(true)
+    try {
+      await apiUpdateUser(token, user.id, { banned: true, banReason: finalReason })
+      onDone()
+      toast({
+        title: `${user.name} foi banido 🚫`,
+        description: 'Ele deixa de conseguir fazer pedidos e vê o motivo do bloqueio.',
+      })
+    } catch (err) {
+      toast({
+        title: 'Erro ao banir',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-red-700">Banir {user.name}?</DialogTitle>
+          <DialogDescription>
+            O cliente fica impedido de fazer pedidos e passa a ver um aviso de conta suspensa
+            com o motivo. Pode desbanir quando quiser.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label>Motivo do banimento</Label>
+          <div className="grid gap-1.5">
+            {REASONS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => {
+                  setReason(r)
+                  setCustom('')
+                }}
+                className={`rounded-xl border-2 p-2.5 text-left text-xs font-bold transition-all ${
+                  reason === r && !custom ? 'border-red-400 bg-red-50' : 'border-border bg-white hover:border-red-200'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <Input
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            placeholder="Ou escreva outro motivo…"
+          />
+        </div>
+        <DialogFooter className="flex-row gap-2">
+          <Button variant="outline" className="flex-1 font-bold" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button variant="destructive" className="flex-1 font-bold" disabled={saving} onClick={confirmBan}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+            BANIR
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------------- Ajustes: dados da loja ----------------
+function StoreSettingsPanel() {
+  const { auth } = useAppStore()
+  const token = auth?.token ?? null
+  const { store, loading } = useStoreConfig()
+  const { toast } = useToast()
+
+  const [name, setName] = useState('')
+  const [tagline, setTagline] = useState('')
+  const [phone, setPhone] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [address, setAddress] = useState('')
+  const [hours, setHours] = useState('')
+  const [deliveryFee, setDeliveryFee] = useState('0')
+  const [minOrder, setMinOrder] = useState('0')
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  // carrega os valores actuais assim que a loja chegar
+  if (store && !loaded) {
+    setName(store.name)
+    setTagline(store.tagline)
+    setPhone(store.phone)
+    setWhatsapp(store.whatsapp)
+    setAddress(store.address)
+    setHours(store.hours)
+    setDeliveryFee(String(store.deliveryFeeKz))
+    setMinOrder(String(store.minOrderKz))
+    setNote(store.note)
+    setLoaded(true)
+  }
+
+  async function save() {
+    if (!name.trim()) {
+      toast({ title: 'O nome da loja é obrigatório.', variant: 'destructive' })
+      return
+    }
+    setSaving(true)
+    try {
+      await apiUpdateStore(token!, {
+        name: name.trim(),
+        tagline: tagline.trim(),
+        phone: phone.trim(),
+        whatsapp: whatsapp.trim(),
+        address: address.trim(),
+        hours: hours.trim(),
+        deliveryFeeKz: Number(deliveryFee) || 0,
+        minOrderKz: Number(minOrder) || 0,
+        note: note.trim(),
+      })
+      toast({
+        title: 'Dados da loja guardados ✅',
+        description: 'Já estão visíveis para os clientes na app.',
+      })
+    } catch (err) {
+      toast({
+        title: 'Erro ao guardar',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading || !store) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">a carregar dados da loja…</p>
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-secondary/50 p-3.5">
+        <p className="flex items-center gap-2 text-sm font-black text-navy">
+          <Building2 className="h-4.5 w-4.5 text-primary" /> Dados da loja
+        </p>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">
+          Preencha os dados que os clientes vêem na app (perfil e informações de contacto).
+          Qualquer perfil de trabalhador que criar também pode editar estes dados.
+        </p>
+      </div>
+
+      <div className="space-y-3 rounded-2xl border border-border bg-white p-4 shadow-sm">
+        <div className="space-y-1.5">
+          <Label htmlFor="st-name">Nome da loja</Label>
+          <Input id="st-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Gota REAL" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="st-tagline">Slogan</Label>
+          <Input id="st-tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="Água purificada entregue onde estiver" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="st-phone">Telefone</Label>
+            <Input id="st-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+244 923 000 000" inputMode="tel" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="st-whatsapp">WhatsApp</Label>
+            <Input id="st-whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+244 923 000 000" inputMode="tel" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="st-address" className="flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 text-primary" /> Endereço
+          </Label>
+          <Input id="st-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rua da Independência, Luanda" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="st-hours" className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-primary" /> Horário de funcionamento
+          </Label>
+          <Input id="st-hours" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="Seg–Sáb: 7h00–19h00" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="st-fee">Taxa de entrega (Kz)</Label>
+            <Input id="st-fee" inputMode="numeric" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="st-min">Pedido mínimo (Kz)</Label>
+            <Input id="st-min" inputMode="numeric" value={minOrder} onChange={(e) => setMinOrder(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="st-note">Nota para os clientes</Label>
+          <Textarea id="st-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex.: Pagamento por TPA ou dinheiro na entrega." />
+        </div>
+
+        <Button onClick={save} disabled={saving} className="h-12 w-full rounded-2xl font-black">
+          {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
+          GUARDAR DADOS DA LOJA
+        </Button>
+      </div>
     </div>
   )
 }

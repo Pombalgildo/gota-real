@@ -24,6 +24,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
     }
 
+    // cliente banido por má conduta não pode fazer pedidos
+    if (customer.banned) {
+      return NextResponse.json(
+        {
+          error: `A sua conta foi suspensa${customer.banReason ? ` (${customer.banReason})` : ''}. Contacte a Gota REAL para regularizar a situação.`,
+        },
+        { status: 403 }
+      )
+    }
+
     // valida produtos e stock
     const productIds = items.map((i: { productId: string }) => i.productId)
     const products = await db.product.findMany({ where: { id: { in: productIds }, active: true } })

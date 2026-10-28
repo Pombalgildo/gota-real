@@ -21,10 +21,14 @@ model Customer {
   // "atualizada" = recapturada depois do cadastro
   locationSource String    @default("auto")
   locationNote   String?
+  // banimento por má conduta (aplicado pelo administrador)
+  banned         Boolean   @default(false)
+  banReason      String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   orders         Order[]
   feedbacks      Feedback[]
+  user           User?
 }
 
 // ---------- Produto ----------
@@ -61,6 +65,56 @@ model Courier {
   available Boolean  @default(true)
   createdAt DateTime @default(now())
   orders    Order[]
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+// ---------- Utilizador (login por perfil) ----------
+// Perfis: "ADMIN" (administrador), "MOTOBOY" (entregador), "CLIENTE"
+model User {
+  id         String    @id @default(cuid())
+  name       String
+  // e-mail de entrada (clientes sem e-mail usam <telefone>@clientes.gotareal.ao)
+  email      String    @unique
+  phone      String    @default("")
+  // senha guardada como hash scrypt (salt:hash) — nunca em texto simples
+  password   String
+  role       String    @default("CLIENTE")
+  // perfil activo (o administrador pode desactivar trabalhadores)
+  active     Boolean   @default(true)
+  // banimento por má conduta (clientes)
+  banned     Boolean   @default(false)
+  banReason  String?
+  customerId String?   @unique
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  courier    Courier?
+  sessions   Session[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+// ---------- Sessão de entrada ----------
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// ---------- Dados da loja (preenchidos pelo administrador) ----------
+model StoreConfig {
+  id            String   @id @default("main")
+  name          String   @default("Gota REAL")
+  tagline       String   @default("")
+  phone         String   @default("")
+  whatsapp      String   @default("")
+  address       String   @default("")
+  hours         String   @default("")
+  deliveryFeeKz Float    @default(0)
+  minOrderKz    Float    @default(0)
+  note          String   @default("")
+  updatedAt     DateTime @updatedAt
 }
 
 // ---------- Pedido ----------

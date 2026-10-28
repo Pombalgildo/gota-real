@@ -1,11 +1,13 @@
 import { db } from '@/lib/db'
+import { hashPassword } from '@/lib/auth'
 
 const globalForSeed = globalThis as unknown as {
   __gotaSeedDone?: boolean
 }
 
 /**
- * Garante que os dados base (produtos e motoboys) existem.
+ * Garante que os dados base existem: produtos, motoboys, PERFIS DE LOGIN
+ * (administrador, motoboy e cliente de demonstração) e dados da loja.
  * Idempotente: executa uma vez por processo.
  */
 export async function ensureSeed(): Promise<void> {
@@ -163,6 +165,100 @@ export async function ensureSeed(): Promise<void> {
             available: true,
           },
         ],
+      })
+    }
+
+    // ---------- PERFIS DE LOGIN (contas de demonstração) ----------
+    const userCount = await db.user.count()
+    if (userCount === 0) {
+      // ADMINISTRADOR — pode tudo: criar perfis, eliminar, banir, gerir a loja
+      await db.user.create({
+        data: {
+          name: 'Administrador Gota REAL',
+          email: 'admin@gotareal.ao',
+          phone: '+244 923 000 000',
+          password: hashPassword('admin123'),
+          role: 'ADMIN',
+        },
+      })
+
+      // MOTOBOY — recebe os pedidos para fazer entregas via GPS
+      const joao = await db.courier.findFirst({ where: { name: 'João Motoboy' } })
+      const motoboyUser = await db.user.create({
+        data: {
+          name: 'João Motoboy',
+          email: 'motoboy@gotareal.ao',
+          phone: '+244 923 000 111',
+          password: hashPassword('motoboy123'),
+          role: 'MOTOBOY',
+        },
+      })
+      // liga o entregador existente a este perfil (a chave vive no Courier)
+      if (joao) {
+        await db.courier.update({ where: { id: joao.id }, data: { userId: motoboyUser.id } })
+      }
+
+      // CLIENTE de demonstração — com local exacto de entrega em Luanda
+      const demoPhone = '923 111 222'
+      let demoCustomer = await db.customer.findUnique({ where: { phone: demoPhone } })
+      if (!demoCustomer) {
+        demoCustomer = await db.customer.create({
+          data: {
+            name: 'Ana Paula Silva',
+            phone: demoPhone,
+            email: 'cliente@gotareal.ao',
+            address: 'Rua Amílcar Cabral, Luanda (Ingombota)',
+            latitude: -8.8147,
+            longitude: 13.2302,
+            locationSource: 'exata',
+            locationNote: 'Local exacto de entrega confirmado no cadastro',
+          },
+        })
+      } else {
+        // normaliza os dados do cliente de demonstração
+        demoCustomer = await db.customer.update({
+          where: { phone: demoPhone },
+          data: {
+            name: 'Ana Paula Silva',
+            email: 'cliente@gotareal.ao',
+            address: 'Rua Amílcar Cabral, Luanda (Ingombota)',
+            latitude: -8.8147,
+            longitude: 13.2302,
+            locationSource: 'exata',
+            locationNote: 'Local exacto de entrega confirmado no cadastro',
+            banned: false,
+            banReason: null,
+          },
+        })
+      }
+      await db.user.create({
+        data: {
+          name: demoCustomer.name,
+          email: 'cliente@gotareal.ao',
+          phone: demoPhone,
+          password: hashPassword('cliente123'),
+          role: 'CLIENTE',
+          customerId: demoCustomer.id,
+        },
+      })
+    }
+
+    // ---------- DADOS DA LOJA ----------
+    const store = await db.storeConfig.findUnique({ where: { id: 'main' } })
+    if (!store) {
+      await db.storeConfig.create({
+        data: {
+          id: 'main',
+          name: 'Gota REAL',
+          tagline: 'Água purificada entregue onde estiver',
+          phone: '+244 923 000 000',
+          whatsapp: '+244 923 000 000',
+          address: 'Rua da Independência, Luanda — Angola',
+          hours: 'Segunda a Sábado: 7h00–19h00 · Domingo: 8h00–13h00',
+          deliveryFeeKz: 0,
+          minOrderKz: 0,
+          note: 'Pagamento por TPA (cartão) ou dinheiro na entrega.',
+        },
       })
     }
   } catch (error) {

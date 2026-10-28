@@ -1,13 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import type { Courier, Feedback, Order, Product } from '@/lib/types'
+import type { Courier, Feedback, Order, Product, StoreConfig, User } from '@/lib/types'
 import {
   fetchAllOrders,
   fetchCouriers,
   fetchCustomerOrders,
   fetchFeedback,
   fetchProducts,
+  fetchStore,
+  fetchUsers,
 } from '@/lib/api'
 import { getRealtimeSocket } from '@/lib/realtime-client'
 
@@ -205,6 +207,77 @@ export function useFeedback(customerId?: string | null) {
   }, [customerId])
 
   return { feedbacks, loading, reload }
+}
+
+/** Perfis de utilizador (apenas administrador) — actualiza em tempo real. */
+export function useUsers(token: string | null | undefined) {
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const reload = useCallback(async () => {
+    if (!token) {
+      setUsers([])
+      setLoading(false)
+      return
+    }
+    try {
+      const { users } = await fetchUsers(token)
+      setUsers(users)
+    } catch {
+      // sem permissão ou erro de rede
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
+
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  useEffect(() => {
+    const socket = getRealtimeSocket()
+    const onUsersUpdate = () => reload()
+    socket.on('users:update', onUsersUpdate)
+    return () => {
+      socket.off('users:update', onUsersUpdate)
+    }
+  }, [reload])
+
+  return { users, loading, reload }
+}
+
+/** Dados da loja (públicos) — actualizam-se quando a equipa os altera. */
+export function useStoreConfig() {
+  const [store, setStore] = useState<StoreConfig | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const reload = useCallback(async () => {
+    try {
+      const { store } = await fetchStore()
+      setStore(store)
+    } catch {
+      // silencioso
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  useEffect(() => {
+    const socket = getRealtimeSocket()
+    const onUpdate = (data: { store?: StoreConfig }) => {
+      if (data?.store) setStore(data.store)
+    }
+    socket.on('store:update', onUpdate)
+    return () => {
+      socket.off('store:update', onUpdate)
+    }
+  }, [])
+
+  return { store, loading, reload }
 }
 
 /** Posição GPS ao vivo de um motoboy (via WebSocket + polling leve) */

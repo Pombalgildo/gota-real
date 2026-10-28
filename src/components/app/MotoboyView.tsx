@@ -5,6 +5,7 @@ import { useAppStore, formatKz, formatDateTime } from '@/store/app-store'
 import { useCouriers, useAllOrders } from '@/components/app/hooks'
 import { MiniMap } from '@/components/app/MiniMap'
 import { PaymentBadge } from '@/components/app/Badges'
+import { LogoutButton } from '@/components/app/LoginDialog'
 import { orderAction, updateCourier } from '@/lib/api'
 import { emitCourierMove, getRealtimeSocket } from '@/lib/realtime-client'
 import {
@@ -37,7 +38,7 @@ import {
 } from 'lucide-react'
 
 export function MotoboyView() {
-  const { courierId, setCourierId, setMode } = useAppStore()
+  const { courierId, setCourierId, auth } = useAppStore()
   const { couriers, loading } = useCouriers()
 
   if (loading) {
@@ -52,11 +53,12 @@ export function MotoboyView() {
     )
   }
 
+  // motoboy entrou com perfil mas ainda sem entregador ligado — escolhe qual é o dele
   if (!courierId || !couriers.find((c) => c.id === courierId)) {
     return <CourierSelect couriers={couriers} onSelect={setCourierId} />
   }
 
-  return <MotoboyPanel onExit={() => { setCourierId(null); setMode('cliente') }} />
+  return <MotoboyPanel courierName={auth?.user.name} />
 }
 
 function CourierSelect({
@@ -66,25 +68,17 @@ function CourierSelect({
   couriers: { id: string; name: string; vehicle: string; plate: string }[]
   onSelect: (id: string) => void
 }) {
-  const { setMode } = useAppStore()
   return (
     <div className="min-h-dvh gota-gradient px-5 py-8">
       <div className="mx-auto max-w-md">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-6 font-bold text-white hover:bg-white/15 hover:text-white"
-          onClick={() => setMode('cliente')}
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar ao cliente
-        </Button>
+        <LogoutButton light label="Terminar sessão" />
         <div className="glass-card rounded-3xl p-6 text-white shadow-xl">
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30">
             <Bike className="h-8 w-8" />
           </span>
           <h1 className="mt-4 text-center text-xl font-black">Painel do Motoboy</h1>
           <p className="mt-1 text-center text-sm text-[#cfe7f8]">
-            Quem está a entregar hoje?
+            O seu perfil ainda não tem mota atribuída. Escolha o seu registo:
           </p>
           <div className="mt-6 space-y-2.5">
             {couriers.map((c) => (
@@ -112,7 +106,7 @@ function CourierSelect({
   )
 }
 
-function MotoboyPanel({ onExit }: { onExit: () => void }) {
+function MotoboyPanel({ courierName }: { courierName?: string }) {
   const { courierId } = useAppStore()
   const { couriers } = useCouriers()
   const { orders, loading } = useAllOrders()
@@ -131,18 +125,16 @@ function MotoboyPanel({ onExit }: { onExit: () => void }) {
       {/* cabeçalho */}
       <header className="gota-gradient px-4 pb-16 pt-5 text-white shadow-lg">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onExit} className="text-white hover:bg-white/15 hover:text-white" aria-label="Sair">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
           <div className="flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
               entregador · {courier?.vehicle} {courier?.plate}
             </p>
-            <h1 className="text-lg font-black leading-tight">{courier?.name ?? 'Motoboy'}</h1>
+            <h1 className="text-lg font-black leading-tight">{courierName ?? courier?.name ?? 'Motoboy'}</h1>
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
             <span className="live-dot" /> ao vivo
           </span>
+          <LogoutButton light label="Sair" />
         </div>
       </header>
 

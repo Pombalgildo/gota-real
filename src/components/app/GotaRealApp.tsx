@@ -12,13 +12,16 @@ import { ProfileView } from '@/components/app/ProfileView'
 import { CentralView } from '@/components/app/CentralView'
 import { MotoboyView } from '@/components/app/MotoboyView'
 import { CheckoutSheet } from '@/components/app/CheckoutSheet'
+import { LogoutButton } from '@/components/app/LoginDialog'
 import { BrandLogo } from '@/components/app/Brand'
+import { getRealtimeSocket } from '@/lib/realtime-client'
 import { cn } from '@/lib/utils'
 import type { CustomerTab } from '@/store/app-store'
 import {
   Home,
   MessageSquareHeart,
   ReceiptText,
+  ShieldAlert,
   ShoppingBasket,
   Store,
   User,
@@ -33,7 +36,7 @@ const NAV: { key: CustomerTab; label: string; icon: typeof Home }[] = [
 ]
 
 export function GotaRealApp() {
-  const { customer, mode } = useAppStore()
+  const { customer, auth } = useAppStore()
   // evita mismatch de hidratação (persistência em localStorage):
   // no servidor não há localStorage; no cliente, depois de montar, passa a true
   const mounted = useSyncExternalStore(
@@ -54,18 +57,43 @@ export function GotaRealApp() {
     )
   }
 
-  // PAINÉIS DA EQUIPA — acessíveis directamente do ecrã de boas-vindas,
-  // sem precisar de conta de cliente (Administrador da Central e Motoboy)
-  if (mode === 'central') return <CentralView />
-  if (mode === 'motoboy') return <MotoboyView />
+  // PAINÉIS DA EQUIPA — abertos com o login do próprio perfil:
+  // o ADMINISTRADOR entra na Central, o MOTOBOY entra nas entregas
+  if (auth?.user.role === 'ADMIN') return <CentralView />
+  if (auth?.user.role === 'MOTOBOY') return <MotoboyView />
 
   if (!customer) return <OnboardingView />
 
   return <CustomerApp />
 }
 
+/** Ecrã mostrado ao cliente banido por má conduta. */
+function BannedScreen() {
+  const { customer, logout } = useAppStore()
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-red-50 px-6 text-center">
+      <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-red-100 text-red-600 shadow-inner">
+        <ShieldAlert className="h-10 w-10" />
+      </span>
+      <h1 className="mt-5 text-xl font-black text-red-700">Conta suspensa</h1>
+      <p className="mt-2 max-w-sm text-sm leading-relaxed text-red-900/80">
+        A sua conta foi suspensa pela administração da Gota REAL
+        {customer?.banReason ? (
+          <>
+            {' '}pelo seguinte motivo: <b>“{customer.banReason}”</b>.
+          </>
+        ) : (
+          '.'
+        )}{' '}
+        Neste momento não é possível fazer pedidos. Contacte-nos para regularizar a situação.
+      </p>
+      <LogoutButton label="Sair da conta" />
+    </div>
+  )
+}
+
 function CustomerApp() {
-  const { customer, tab, setTab, cart, setCheckoutOpen, syncCartProducts } = useAppStore()
+  const { customer, tab, setTab, cart, setCheckoutOpen, syncCartProducts, setCustomer } = useAppStore()
   const { products } = useProducts()
   const totals = cartTotals(cart)
   const firstName = customer?.name?.split(' ')[0] ?? 'cliente'
@@ -76,6 +104,25 @@ function CustomerApp() {
   useEffect(() => {
     if (products.length > 0) syncCartProducts(products)
   }, [products, syncCartProducts])
+
+  // se o administrador banir este cliente, o bloqueio aparece na hora
+  useEffect(() => {
+    const socket = getRealtimeSocket()
+    const onBan = (data: { customerId?: string; banned?: boolean; banReason?: string | null }) => {
+      if (!data || data.customerId !== customer?.id) return
+      setCustomer({
+        ...customer,
+        banned: Boolean(data.banned),
+        banReason: data.banReason ?? null,
+      })
+    }
+    socket.on('auth:banned', onBan)
+    return () => {
+      socket.off('auth:banned', onBan)
+    }
+  }, [customer, setCustomer])
+
+  if (customer?.banned) return <BannedScreen />
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">

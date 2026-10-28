@@ -1,5 +1,58 @@
 // Tipos partilhados entre o front-end e a API
 
+export type UserRole = 'ADMIN' | 'MOTOBOY' | 'CLIENTE'
+
+export const ROLE_LABEL: Record<string, string> = {
+  ADMIN: 'Administrador',
+  MOTOBOY: 'Motoboy',
+  CLIENTE: 'Cliente',
+}
+
+// ---------- Utilizador (login por perfil) ----------
+export interface User {
+  id: string
+  name: string
+  email: string
+  phone: string
+  role: UserRole | string
+  active: boolean
+  banned: boolean
+  banReason?: string | null
+  customerId?: string | null
+  courierId?: string | null
+  createdAt: string
+  updatedAt: string
+  customer?: {
+    id: string
+    name: string
+    phone: string
+    banned: boolean
+    _count?: { orders: number }
+  } | null
+  courier?: {
+    id: string
+    name: string
+    vehicle: string
+    plate: string
+    available: boolean
+  } | null
+}
+
+// ---------- Dados da loja ----------
+export interface StoreConfig {
+  id: string
+  name: string
+  tagline: string
+  phone: string
+  whatsapp: string
+  address: string
+  hours: string
+  deliveryFeeKz: number
+  minOrderKz: number
+  note: string
+  updatedAt: string
+}
+
 export interface Customer {
   id: string
   name: string
@@ -10,6 +63,8 @@ export interface Customer {
   longitude?: number | null
   locationSource: 'exata' | 'auto' | 'atualizada' | string
   locationNote?: string | null
+  banned?: boolean
+  banReason?: string | null
   createdAt: string
   updatedAt: string
 }
