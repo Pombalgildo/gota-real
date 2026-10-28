@@ -33,6 +33,9 @@ interface AppState {
   removeFromCart: (productId: string) => void
   setCartQuantity: (productId: string, qty: number) => void
   clearCart: () => void
+  // actualiza os dados do carrinho quando o administrador muda
+  // preços, fotos ou disponibilidade dos artigos na loja
+  syncCartProducts: (products: Product[]) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -85,6 +88,17 @@ export const useAppStore = create<AppState>()(
         })),
 
       clearCart: () => set({ cart: [] }),
+
+      syncCartProducts: (products) =>
+        set((state) => ({
+          cart: state.cart
+            .map((item) => {
+              const fresh = products.find((p) => p.id === item.product.id)
+              return fresh ? { ...item, product: fresh } : item
+            })
+            // artigos desactivados pelo administrador saem do pedido
+            .filter((item) => item.product.active !== false && item.product.stock > 0),
+        })),
     }),
     {
       name: 'gota-real-store',

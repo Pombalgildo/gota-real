@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useAppStore, formatKz, formatLiters, cartTotals } from '@/store/app-store'
 import { useProducts } from '@/components/app/hooks'
-import { ProductArt } from '@/components/app/ProductArt'
+import { ProductPhoto } from '@/components/app/ProductPhoto'
 import { QuantityStepper } from '@/components/app/Badges'
 import type { Product } from '@/lib/types'
 import {
@@ -158,9 +158,7 @@ function ShopCard({ product }: { product: Product }) {
 
   return (
     <div className="flex gap-4 rounded-3xl border-2 border-border bg-white p-4 shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-md">
-      <div className="h-28 w-28 shrink-0">
-        <ProductArt kind={product.kind} volumeL={product.volumeL} />
-      </div>
+      <ProductPhoto product={product} className="h-28 w-28 shrink-0" rounded="rounded-2xl" />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-base font-black leading-tight text-navy">{product.name}</h3>

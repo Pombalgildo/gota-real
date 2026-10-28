@@ -2,7 +2,7 @@
 
 import { useAppStore, formatKz, formatTime } from '@/store/app-store'
 import { useProducts, useCustomerOrders } from '@/components/app/hooks'
-import { ProductArt } from '@/components/app/ProductArt'
+import { ProductPhoto } from '@/components/app/ProductPhoto'
 import { DropCrownIcon } from '@/components/app/Brand'
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import type { Product } from '@/lib/types'
@@ -97,7 +97,7 @@ export function HomeView() {
           <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
           <div className="flex items-center gap-4">
             <div className="h-24 w-24 shrink-0 drop-shadow-lg transition-transform duration-200 group-hover:scale-105 sm:h-28 sm:w-28">
-              <ProductArt kind="bidon" volumeL={5} />
+              <ProductPhoto product={bidon} className="h-24 w-24 sm:h-28 sm:w-28" rounded="rounded-3xl" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gold">
@@ -307,9 +307,11 @@ function WaterCard({ product }: { product: Product }) {
   const { addToCart, setCheckoutOpen } = useAppStore()
   return (
     <div className="group flex flex-col rounded-3xl border-2 border-border bg-white p-3.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
-      <div className="mx-auto h-24 w-24 transition-transform duration-200 group-hover:scale-105">
-        <ProductArt kind={product.kind} volumeL={product.volumeL} />
-      </div>
+      <ProductPhoto
+        product={product}
+        className="mx-auto h-24 w-24 transition-transform duration-200 group-hover:scale-105"
+        rounded="rounded-2xl"
+      />
       <p className="mt-2 line-clamp-2 min-h-9 text-[13px] font-bold leading-tight text-navy">
         {product.name}
       </p>

@@ -34,6 +34,17 @@ export function useProducts() {
     reload()
   }, [reload])
 
+  // quando o administrador altera preços, fotos reais ou disponibilidade
+  // na Central, a loja de todos os clientes actualiza-se automaticamente
+  useEffect(() => {
+    const socket = getRealtimeSocket()
+    const onProductsUpdate = () => reload()
+    socket.on('products:update', onProductsUpdate)
+    return () => {
+      socket.off('products:update', onProductsUpdate)
+    }
+  }, [reload])
+
   return { products, loading, reload }
 }
 

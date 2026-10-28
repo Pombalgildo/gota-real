@@ -1,0 +1,804 @@
+     1→'use client'
+     2→
+     3→import { useMemo, useState } from 'react'
+     4→import { useAppStore, formatKz, formatLiters, formatTime, formatDateTime, durationMinutes } from '@/store/app-store'
+     5→import { useAllOrders, useFeedback, useCouriers, useProducts } from '@/components/app/hooks'
+     6→import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
+     7→import { OrderTimeline } from '@/components/app/OrderTimeline'
+     8→import { ProductArt } from '@/components/app/ProductArt'
+     9→import { orderAction, respondFeedback, updateProduct, createProduct, createCourier } from '@/lib/api'
+    10→import { useToast } from '@/hooks/use-toast'
+    11→import { Button } from '@/components/ui/button'
+    12→import { Input } from '@/components/ui/input'
+    13→import { Label } from '@/components/ui/label'
+    14→import { Textarea } from '@/components/ui/textarea'
+    15→import { Badge } from '@/components/ui/badge'
+    16→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    17→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    18→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    19→import { Switch } from '@/components/ui/switch'
+    20→import type { Order, Product } from '@/lib/types'
+    21→import { cn } from '@/lib/utils'
+    22→import {
+    23→  ArrowLeft,
+    24→  Bike,
+    25→  Check,
+    26→  ClipboardList,
+    27→  Loader2,
+    28→  MessageSquareWarning,
+    29→  Package,
+    30→  Phone,
+    31→  Plus,
+    32→  Reply,
+    33→  Send,
+    34→  Timer,
+    35→  TrendingUp,
+    36→  Truck,
+    37→  User,
+    38→  Warehouse,
+    39→  XCircle,
+    40→} from 'lucide-react'
+    41→
+    42→const FILTERS = [
+    43→  { key: 'todos', label: 'Todos' },
+    44→  { key: 'pendente', label: 'Solicitados' },
+    45→  { key: 'confirmado', label: 'Confirmados' },
+    46→  { key: 'em_transito', label: 'Em trânsito' },
+    47→  { key: 'entregue', label: 'Entregues' },
+    48→  { key: 'cancelado', label: 'Cancelados' },
+    49→]
+    50→
+    51→export function CentralView() {
+    52→  return (
+    53→    <div className="min-h-dvh bg-background pb-24">
+    54→      {/* cabeçalho */}
+    55→      <header className="gota-gradient px-4 pb-16 pt-5 text-white shadow-lg">
+    56→        <div className="mx-auto flex max-w-5xl items-center gap-3">
+    57→          <BackToCustomerButton light />
+    58→          <div className="flex-1">
+    59→            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
+    60→              painel operativo
+    61→            </p>
+    62→            <h1 className="text-lg font-black leading-tight">Central Gota REAL 👑</h1>
+    63→          </div>
+    64→          <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
+    65→            <span className="live-dot" /> ao vivo
+    66→          </span>
+    67→        </div>
+    68→      </header>
+    69→
+    70→      <div className="mx-auto -mt-11 max-w-5xl space-y-5 px-4">
+    71→        <CentralStats />
+    72→        <CentralTabs />
+    73→      </div>
+    74→    </div>
+    75→  )
+    76→}
+    77→
+    78→function BackToCustomerButton({ light = false }: { light?: boolean }) {
+    79→  const { setMode } = useAppStore()
+    80→  return (
+    81→    <Button
+    82→      variant="ghost"
+    83→      size="icon"
+    84→      onClick={() => setMode('cliente')}
+    85→      className={cn(light ? 'text-white hover:bg-white/15 hover:text-white' : '')}
+    86→      aria-label="Voltar ao app do cliente"
+    87→    >
+    88→      <ArrowLeft className="h-5 w-5" />
+    89→    </Button>
+    90→  )
+    91→}
+    92→
+    93→function CentralStats() {
+    94→  const { orders } = useAllOrders()
+    95→  const today = new Date().toDateString()
+    96→
+    97→  const stats = useMemo(() => {
+    98→    const todayOrders = orders.filter((o) => new Date(o.requestedAt).toDateString() === today)
+    99→    const pending = orders.filter((o) => o.status === 'pendente')
+   100→    const inTransit = orders.filter((o) => o.status === 'em_transito')
+   101→    const deliveredToday = todayOrders.filter((o) => o.status === 'entregue')
+   102→    const revenueToday = deliveredToday.reduce((s, o) => s + o.totalKz, 0)
+   103→    const durations = deliveredToday
+   104→      .filter((o) => o.deliveredAt)
+   105→      .map((o) => new Date(o.deliveredAt!).getTime() - new Date(o.requestedAt).getTime())
+   106→    const avgMin = durations.length
+   107→      ? Math.round((durations.reduce((s, d) => s + d, 0) / durations.length) / 60000)
+   108→      : null
+   109→    return { todayCount: todayOrders.length, pending: pending.length, inTransit: inTransit.length, deliveredToday: deliveredToday.length, revenueToday, avgMin }
+   110→  }, [orders, today])
+   111→
+   112→  const items = [
+   113→    { icon: ClipboardList, label: 'pedidos hoje', value: stats.todayCount, accent: 'text-primary bg-secondary' },
+   114→    { icon: Timer, label: 'solicitados', value: stats.pending, accent: 'text-amber-600 bg-amber-100' },
+   115→    { icon: Truck, label: 'em trânsito', value: stats.inTransit, accent: 'text-blue-600 bg-blue-100' },
+   116→    { icon: Check, label: 'entregues hoje', value: stats.deliveredToday, accent: 'text-emerald-600 bg-emerald-100' },
+   117→    { icon: TrendingUp, label: 'faturação hoje', value: formatKz(stats.revenueToday), accent: 'text-gold bg-gold/15' },
+   118→    { icon: Bike, label: 'tempo médio', value: stats.avgMin != null ? `${stats.avgMin} min` : '—', accent: 'text-navy bg-secondary' },
+   119→  ]
+   120→
+   121→  return (
+   122→    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+   123→      {items.map(({ icon: Icon, label, value, accent }) => (
+   124→        <div key={label} className="rounded-2xl border border-border bg-white p-3 shadow-md">
+   125→          <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', accent)}>
+   126→            <Icon className="h-4 w-4" />
+   127→          </span>
+   128→          <p className="mt-2 truncate text-lg font-black leading-none text-navy">{value}</p>
+   129→          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+   130→        </div>
+   131→      ))}
+   132→    </div>
+   133→  )
+   134→}
+   135→
+   136→function CentralTabs() {
+   137→  return (
+   138→    <Tabs defaultValue="pedidos">
+   139→      <TabsList className="grid w-full grid-cols-4 rounded-xl bg-secondary p-1">
+   140→        <TabsTrigger value="pedidos" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
+   141→          <ClipboardList className="mr-1 h-3.5 w-3.5" /> Pedidos
+   142→        </TabsTrigger>
+   143→        <TabsTrigger value="feedback" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
+   144→          <MessageSquareWarning className="mr-1 h-3.5 w-3.5" /> Mensagens
+   145→        </TabsTrigger>
+   146→        <TabsTrigger value="produtos" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
+   147→          <Package className="mr-1 h-3.5 w-3.5" /> Produtos
+   148→        </TabsTrigger>
+   149→        <TabsTrigger value="equipa" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
+   150→          <Bike className="mr-1 h-3.5 w-3.5" /> Equipa
+   151→        </TabsTrigger>
+   152→      </TabsList>
+   153→
+   154→      <TabsContent value="pedidos" className="mt-4">
+   155→        <OrdersPanel />
+   156→      </TabsContent>
+   157→      <TabsContent value="feedback" className="mt-4">
+   158→        <FeedbackPanel />
+   159→      </TabsContent>
+   160→      <TabsContent value="produtos" className="mt-4">
+   161→        <ProductsPanel />
+   162→      </TabsContent>
+   163→      <TabsContent value="equipa" className="mt-4">
+   164→        <TeamPanel />
+   165→      </TabsContent>
+   166→    </Tabs>
+   167→  )
+   168→}
+   169→
+   170→// ---------------- Pedidos ----------------
+   171→function OrdersPanel() {
+   172→  const { orders, loading } = useAllOrders()
+   173→  const [filter, setFilter] = useState('todos')
+   174→  const [detail, setDetail] = useState<Order | null>(null)
+   175→
+   176→  const filtered = filter === 'todos' ? orders : orders.filter((o) => o.status === filter)
+   177→  const detailLive = detail ? orders.find((o) => o.id === detail.id) ?? detail : null
+   178→
+   179→  if (detailLive) {
+   180→    return <CentralOrderDetail order={detailLive} onBack={() => setDetail(null)} />
+   181→  }
+   182→
+   183→  return (
+   184→    <div className="space-y-3">
+   185→      {/* filtros */}
+   186→      <div className="custom-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+   187→        {FILTERS.map((f) => (
+   188→          <button
+   189→            key={f.key}
+   190→            onClick={() => setFilter(f.key)}
+   191→            className={cn(
+   192→              'shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all',
+   193→              filter === f.key
+   194→                ? 'border-primary bg-primary text-white shadow-sm'
+   195→                : 'border-border bg-white text-muted-foreground hover:border-input'
+   196→            )}
+   197→          >
+   198→            {f.label}
+   199→          </button>
+   200→        ))}
+   201→      </div>
+   202→
+   203→      {loading ? (
+   204→        <p className="py-8 text-center text-sm text-muted-foreground">a carregar pedidos…</p>
+   205→      ) : filtered.length === 0 ? (
+   206→        <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-input bg-white/60 py-12 text-muted-foreground">
+   207→          <ClipboardList className="h-8 w-8 opacity-40" />
+   208→          <p className="mt-2 text-sm font-medium">Sem pedidos neste filtro</p>
+   209→        </div>
+   210→      ) : (
+   211→        filtered.map((order) => <CentralOrderCard key={order.id} order={order} onOpen={() => setDetail(order)} />)
+   212→      )}
+   213→    </div>
+   214→  )
+   215→}
+   216→
+   217→function CentralOrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
+   218→  const { couriers } = useCouriers()
+   219→  const { toast } = useToast()
+   220→  const [busy, setBusy] = useState(false)
+   221→  const [assignOpen, setAssignOpen] = useState(false)
+   222→
+   223→  async function act(action: 'confirm' | 'assign' | 'cancel', courierId?: string) {
+   224→    setBusy(true)
+   225→    try {
+   226→      await orderAction(order.id, action, courierId)
+   227→      if (action === 'confirm') toast({ title: `Pedido nº ${order.number} confirmado ✅` })
+   228→      if (action === 'assign') toast({ title: `Motoboy atribuído ao pedido nº ${order.number} 🛵` })
+   229→      if (action === 'cancel') toast({ title: `Pedido nº ${order.number} cancelado`, variant: 'destructive' })
+   230→    } catch (err) {
+   231→      toast({
+   232→        title: 'Acção falhou',
+   233→        description: err instanceof Error ? err.message : 'Tente novamente.',
+   234→        variant: 'destructive',
+   235→      })
+   236→    } finally {
+   237→      setBusy(false)
+   238→      setAssignOpen(false)
+   239→    }
+   240→  }
+   241→
+   242→  const availableCouriers = couriers
+   243→
+   244→  return (
+   245→    <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+   246→      <button onClick={onOpen} className="w-full text-left" aria-label={`Detalhe do pedido nº ${order.number}`}>
+   247→        <div className="flex items-start justify-between gap-2">
+   248→          <div>
+   249→            <p className="text-sm font-black text-navy">
+   250→              #{order.number} · {order.customer?.name}
+   251→              {order.status === 'pendente' && <span className="live-dot ml-2 align-middle" />}
+   252→            </p>
+   253→            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+   254→              <Phone className="h-3 w-3" /> {order.customer?.phone} · {formatTime(order.requestedAt)}
+   255→            </p>
+   256→          </div>
+   257→          <StatusBadge status={order.status} />
+   258→        </div>
+   259→        <div className="mt-2.5 flex items-center justify-between text-xs">
+   260→          <span className="text-muted-foreground">
+   261→            {order.items.reduce((s, i) => s + i.quantity, 0)} itens · {formatLiters(order.totalLiters)} ·{' '}
+   262→            <b className="text-foreground">{formatKz(order.totalKz)}</b>
+   263→          </span>
+   264→          <PaymentBadge method={order.paymentMethod} />
+   265→        </div>
+   266→        {order.courier && (
+   267→          <p className="mt-2 flex items-center gap-1 rounded-lg bg-gold/15 px-2 py-1 text-[11px] font-bold text-[#6B5410]">
+   268→            <Bike className="h-3 w-3" /> {order.courier.name} · {order.courier.vehicle}
+   269→          </p>
+   270→        )}
+   271→      </button>
+   272→
+   273→      {/* acções rápidas */}
+   274→      <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+   275→        {order.status === 'pendente' && (
+   276→          <Button size="sm" className="h-8 rounded-full font-bold" disabled={busy} onClick={() => act('confirm')}>
+   277→            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Confirmar
+   278→          </Button>
+   279→        )}
+   280→        {(order.status === 'pendente' || order.status === 'confirmado') && (
+   281→          <Button size="sm" variant="secondary" className="h-8 rounded-full font-bold" disabled={busy} onClick={() => setAssignOpen(true)}>
+   282→            <Bike className="h-3.5 w-3.5" /> {order.courierId ? 'Trocar motoboy' : 'Atribuir motoboy'}
+   283→          </Button>
+   284→        )}
+   285→        {(order.status === 'pendente' || order.status === 'confirmado') && (
+   286→          <Button size="sm" variant="ghost" className="h-8 rounded-full text-red-600 hover:bg-red-50" disabled={busy} onClick={() => act('cancel')}>
+   287→            <XCircle className="h-3.5 w-3.5" /> Cancelar
+   288→          </Button>
+   289→        )}
+   290→        <Button size="sm" variant="outline" className="ml-auto h-8 rounded-full" onClick={onOpen}>
+   291→          Detalhes
+   292→        </Button>
+   293→      </div>
+   294→
+   295→      {/* dialog de atribuição */}
+   296→      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+   297→        <DialogContent className="sm:max-w-sm">
+   298→          <DialogHeader>
+   299→            <DialogTitle>Atribuir motoboy</DialogTitle>
+   300→            <DialogDescription>
+   301→              Escolha o entregador para o pedido nº {order.number}. O motoboy recebe a entrega no
+   302→              painel dele e o cliente passa a vê-lo por GPS.
+   303→            </DialogDescription>
+   304→          </DialogHeader>
+   305→          <div className="space-y-2">
+   306→            {availableCouriers.map((c) => (
+   307→              <button
+   308→                key={c.id}
+   309→                onClick={() => act('assign', c.id)}
+   310→                disabled={busy}
+   311→                className="flex w-full items-center gap-3 rounded-xl border-2 border-border bg-white p-3 text-left transition-all hover:border-primary hover:bg-secondary/40"
+   312→              >
+   313→                <span className="flex h-10 w-10 items-center justify-center rounded-xl gota-gradient text-white">
+   314→                  <Bike className="h-5 w-5" />
+   315→                </span>
+   316→                <span className="flex-1">
+   317→                  <span className="block text-sm font-black text-navy">{c.name}</span>
+   318→                  <span className="block text-xs text-muted-foreground">
+   319→                    {c.vehicle} · {c.plate}
+   320→                  </span>
+   321→                </span>
+   322→                <span
+   323→                  className={cn(
+   324→                    'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+   325→                    c.available
+   326→                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+   327→                      : 'border-amber-200 bg-amber-50 text-amber-700'
+   328→                  )}
+   329→                >
+   330→                  {c.available ? 'livre' : `ocupado (${c.orders?.length ?? 0})`}
+   331→                </span>
+   332→              </button>
+   333→            ))}
+   334→          </div>
+   335→        </DialogContent>
+   336→      </Dialog>
+   337→    </div>
+   338→  )
+   339→}
+   340→
+   341→function CentralOrderDetail({ order, onBack }: { order: Order; onBack: () => void }) {
+   342→  return (
+   343→    <div className="space-y-4">
+   344→      <Button variant="ghost" size="sm" onClick={onBack} className="font-bold">
+   345→        <ArrowLeft className="h-4 w-4" /> Voltar aos pedidos
+   346→      </Button>
+   347→
+   348→      <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+   349→        <div className="flex items-start justify-between gap-2">
+   350→          <div>
+   351→            <h3 className="text-base font-black text-navy">Pedido nº {order.number}</h3>
+   352→            <p className="mt-0.5 text-xs text-muted-foreground">
+   353→              {formatDateTime(order.requestedAt)} · {order.customer?.phone}
+   354→            </p>
+   355→          </div>
+   356→          <StatusBadge status={order.status} />
+   357→        </div>
+   358→
+   359→        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+   360→          <div className="rounded-xl bg-secondary/60 p-2.5">
+   361→            <p className="font-bold text-secondary-foreground">Cliente</p>
+   362→            <p className="mt-0.5 text-foreground">{order.customer?.name}</p>
+   363→            <p className="text-muted-foreground">{order.customer?.phone}</p>
+   364→          </div>
+   365→          <div className="rounded-xl bg-secondary/60 p-2.5">
+   366→            <p className="font-bold text-secondary-foreground">Entrega</p>
+   367→            <p className="mt-0.5 text-foreground">{order.address || 'GPS'}</p>
+   368→            {order.latitude != null && (
+   369→              <p className="font-mono text-[10px] text-muted-foreground">
+   370→                {order.latitude.toFixed(5)}, {order.longitude?.toFixed(5)}
+   371→              </p>
+   372→            )}
+   373→          </div>
+   374→        </div>
+   375→
+   376→        {order.courier && (
+   377→          <div className="mt-2 flex items-center gap-2 rounded-xl bg-gold/15 p-2.5 text-xs">
+   378→            <Bike className="h-4 w-4 text-gold" />
+   379→            <p className="font-bold text-[#6B5410]">
+   380→              {order.courier.name} · {order.courier.vehicle} · {order.courier.plate} · {order.courier.phone}
+   381→            </p>
+   382→          </div>
+   383→        )}
+   384→
+   385→        <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
+   386→          {order.items.map((i) => (
+   387→            <li key={i.id} className="flex items-center justify-between text-xs">
+   388→              <span className="text-foreground">
+   389→                {i.quantity}× {i.productName}
+   390→              </span>
+   391→              <b className="text-navy">{formatKz(i.unitPriceKz * i.quantity)}</b>
+   392→            </li>
+   393→          ))}
+   394→        </ul>
+   395→        <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-sm">
+   396→          <span className="text-muted-foreground">
+   397→            Total ({order.paymentMethod === 'TPA' ? 'TPA' : 'cash'}) · {formatLiters(order.totalLiters)}
+   398→          </span>
+   399→          <b className="text-primary">{formatKz(order.totalKz)}</b>
+   400→        </div>
+   401→        {order.notes && (
+   402→          <p className="mt-2 rounded-xl bg-secondary/70 p-2.5 text-xs italic text-secondary-foreground">
+   403→            “{order.notes}”
+   404→          </p>
+   405→        )}
+   406→      </div>
+   407→
+   408→      <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+   409→        <h4 className="mb-3 text-sm font-black text-navy">Histórico de tempos</h4>
+   410→        <OrderTimeline order={order} />
+   411→        {order.status === 'entregue' && (
+   412→          <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-center text-xs font-bold text-emerald-700">
+   413→            pedido {formatTime(order.requestedAt)} → entrega {formatTime(order.deliveredAt)} (
+   414→            {durationMinutes(order.requestedAt, order.deliveredAt)})
+   415→          </p>
+   416→        )}
+   417→      </div>
+   418→    </div>
+   419→  )
+   420→}
+   421→
+   422→// ---------------- Feedback ----------------
+   423→function FeedbackPanel() {
+   424→  const { feedbacks, loading } = useFeedback()
+   425→  const { toast } = useToast()
+   426→  const [replyTo, setReplyTo] = useState<string | null>(null)
+   427→  const [reply, setReply] = useState('')
+   428→  const [sending, setSending] = useState(false)
+   429→
+   430→  async function send(fbid: string) {
+   431→    setSending(true)
+   432→    try {
+   433→      await respondFeedback(fbid, reply.trim())
+   434→      setReplyTo(null)
+   435→      setReply('')
+   436→      toast({ title: 'Resposta enviada ao cliente ✅' })
+   437→    } catch (err) {
+   438→      toast({
+   439→        title: 'Erro ao responder',
+   440→        description: err instanceof Error ? err.message : 'Tente novamente.',
+   441→        variant: 'destructive',
+   442→      })
+   443→    } finally {
+   444→      setSending(false)
+   445→    }
+   446→  }
+   447→
+   448→  if (loading) return <p className="py-8 text-center text-sm text-muted-foreground">a carregar…</p>
+   449→
+   450→  if (feedbacks.length === 0) {
+   451→    return (
+   452→      <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-input bg-white/60 py-12 text-muted-foreground">
+   453→        <MessageSquareWarning className="h-8 w-8 opacity-40" />
+   454→        <p className="mt-2 text-sm font-medium">Sem sugestões ou reclamações</p>
+   455→      </div>
+   456→    )
+   457→  }
+   458→
+   459→  return (
+   460→    <div className="space-y-3">
+   461→      {feedbacks.map((f) => (
+   462→        <div key={f.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+   463→          <div className="flex items-start justify-between gap-2">
+   464→            <div className="flex items-center gap-2.5">
+   465→              <span
+   466→                className={cn(
+   467→                  'flex h-9 w-9 items-center justify-center rounded-xl',
+   468→                  f.type === 'sugestao' ? 'bg-secondary text-primary' : 'bg-red-100 text-red-600'
+   469→                )}
+   470→              >
+   471→                {f.type === 'sugestao' ? '💡' : '⚠️'}
+   472→              </span>
+   473→              <div>
+   474→                <p className="text-sm font-black text-navy">{f.subject}</p>
+   475→                <p className="text-[11px] text-muted-foreground">
+   476→                  {f.customer?.name ?? 'Anónimo'} · {f.customer?.phone ?? '—'} ·{' '}
+   477→                  {formatDateTime(f.createdAt)}
+   478→                </p>
+   479→              </div>
+   480→            </div>
+   481→            <Badge
+   482→              variant="outline"
+   483→              className={cn(
+   484→                'text-[10px]',
+   485→                f.status === 'respondido'
+   486→                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+   487→                  : 'border-amber-200 bg-amber-50 text-amber-700'
+   488→              )}
+   489→            >
+   490→              {f.status === 'respondido' ? 'respondido' : 'em aberto'}
+   491→            </Badge>
+   492→          </div>
+   493→          <p className="mt-2.5 text-xs leading-relaxed text-foreground">{f.message}</p>
+   494→
+   495→          {f.response ? (
+   496→            <div className="mt-2.5 rounded-xl bg-secondary/70 p-3">
+   497→              <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-secondary-foreground">
+   498→                <Reply className="h-3 w-3" /> resposta da central
+   499→              </p>
+   500→              <p className="mt-1 text-xs text-foreground">{f.response}</p>
+   501→            </div>
+   502→          ) : replyTo === f.id ? (
+   503→            <div className="mt-2.5 space-y-2">
+   504→              <Textarea
+   505→                placeholder="Escreva a resposta ao cliente…"
+   506→                value={reply}
+   507→                onChange={(e) => setReply(e.target.value)}
+   508→                className="min-h-20"
+   509→              />
+   510→              <div className="flex gap-2">
+   511→                <Button variant="ghost" size="sm" onClick={() => { setReplyTo(null); setReply('') }}>
+   512→                  Cancelar
+   513→                </Button>
+   514→                <Button size="sm" className="font-bold" disabled={!reply.trim() || sending} onClick={() => send(f.id)}>
+   515→                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar resposta
+   516→                </Button>
+   517→              </div>
+   518→            </div>
+   519→          ) : (
+   520→            <Button
+   521→              variant="outline"
+   522→              size="sm"
+   523→              className="mt-2.5 h-8 rounded-full font-bold"
+   524→              onClick={() => setReplyTo(f.id)}
+   525→            >
+   526→              <Reply className="h-3.5 w-3.5" /> Responder
+   527→            </Button>
+   528→          )}
+   529→        </div>
+   530→      ))}
+   531→    </div>
+   532→  )
+   533→}
+   534→
+   535→// ---------------- Produtos ----------------
+   536→function ProductsPanel() {
+   537→  const { products, reload } = useProducts()
+   538→  const { toast } = useToast()
+   539→  const [addOpen, setAddOpen] = useState(false)
+   540→  const [editing, setEditing] = useState<Product | null>(null)
+   541→
+   542→  return (
+   543→    <div className="space-y-3">
+   544→      <Button className="h-10 w-full rounded-xl font-bold" onClick={() => setAddOpen(true)}>
+   545→        <Plus className="h-4 w-4" /> Novo produto à venda
+   546→      </Button>
+   547→
+   548→      {products.map((p) => (
+   549→        <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3 shadow-sm">
+   550→          <div className="h-16 w-16 shrink-0">
+   551→            <ProductArt kind={p.kind} volumeL={p.volumeL} />
+   552→          </div>
+   553→          <div className="min-w-0 flex-1">
+   554→            <p className="truncate text-sm font-black text-navy">{p.name}</p>
+   555→            <p className="text-xs text-muted-foreground">
+   556→              {formatKz(p.priceKz)} · stock {p.stock} · {p.category === 'agua' ? 'água' : 'acessório'}
+   557→            </p>
+   558→          </div>
+   559→          <Switch
+   560→            checked={p.active}
+   561→            onCheckedChange={async (v) => {
+   562→              await updateProduct(p.id, { active: v })
+   563→              reload()
+   564→            }}
+   565→            aria-label={`Activar/desactivar ${p.name}`}
+   566→          />
+   567→          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => setEditing(p)} aria-label={`Editar ${p.name}`}>
+   568→            <Warehouse className="h-4 w-4" />
+   569→          </Button>
+   570→        </div>
+   571→      ))}
+   572→
+   573→      <ProductFormDialog
+   574→        open={addOpen}
+   575→        onOpenChange={setAddOpen}
+   576→        onSaved={() => { reload(); setAddOpen(false) }}
+   577→      />
+   578→      {editing && (
+   579→        <ProductFormDialog
+   580→          open={!!editing}
+   581→          product={editing}
+   582→          onOpenChange={(o) => !o && setEditing(null)}
+   583→          onSaved={() => { reload(); setEditing(null) }}
+   584→        />
+   585→      )}
+   586→    </div>
+   587→  )
+   588→}
+   589→
+   590→function ProductFormDialog({
+   591→  open,
+   592→  onOpenChange,
+   593→  product,
+   594→  onSaved,
+   595→}: {
+   596→  open: boolean
+   597→  onOpenChange: (o: boolean) => void
+   598→  product?: Product
+   599→  onSaved: () => void
+   600→}) {
+   601→  const { toast } = useToast()
+   602→  const [name, setName] = useState(product?.name ?? '')
+   603→  const [price, setPrice] = useState(String(product?.priceKz ?? ''))
+   604→  const [stock, setStock] = useState(String(product?.stock ?? '50'))
+   605→  const [category, setCategory] = useState(product?.category ?? 'agua')
+   606→  const [volume, setVolume] = useState(String(product?.volumeL ?? ''))
+   607→  const [saving, setSaving] = useState(false)
+   608→
+   609→  async function save() {
+   610→    if (!name.trim() || !price) {
+   611→      toast({ title: 'Nome e preço são obrigatórios', variant: 'destructive' })
+   612→      return
+   613→    }
+   614→    setSaving(true)
+   615→    try {
+   616→      const body = {
+   617→        name: name.trim(),
+   618→        priceKz: Number(price),
+   619→        stock: Number(stock) || 0,
+   620→        category,
+   621→        kind: category === 'agua' ? (Number(volume) >= 5 ? 'garrafao' : 'garrafa') : 'acessorio',
+   622→        volumeL: Number(volume) || 0,
+   623→        unitLabel: category === 'agua' ? `${volume ?? ''}L` : 'unidade',
+   624→      }
+   625→      if (product) {
+   626→        await updateProduct(product.id, body)
+   627→        toast({ title: 'Produto actualizado ✅' })
+   628→      } else {
+   629→        await createProduct(body)
+   630→        toast({ title: 'Produto criado e à venda! ✅' })
+   631→      }
+   632→      onSaved()
+   633→    } catch (err) {
+   634→      toast({
+   635→        title: 'Erro ao guardar',
+   636→        description: err instanceof Error ? err.message : 'Tente novamente.',
+   637→        variant: 'destructive',
+   638→      })
+   639→    } finally {
+   640→      setSaving(false)
+   641→    }
+   642→  }
+   643→
+   644→  return (
+   645→    <Dialog open={open} onOpenChange={onOpenChange}>
+   646→      <DialogContent className="sm:max-w-sm">
+   647→        <DialogHeader>
+   648→          <DialogTitle>{product ? 'Editar produto' : 'Novo produto'}</DialogTitle>
+   649→          <DialogDescription>
+   650→            Produtos activos ficam disponíveis na loja do cliente.
+   651→          </DialogDescription>
+   652→        </DialogHeader>
+   653→        <div className="space-y-3">
+   654→          <div className="space-y-1.5">
+   655→            <Label htmlFor="pf-name">Nome</Label>
+   656→            <Input id="pf-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Bidão 5L" />
+   657→          </div>
+   658→          <div className="grid grid-cols-2 gap-2">
+   659→            <div className="space-y-1.5">
+   660→              <Label htmlFor="pf-price">Preço (Kz)</Label>
+   661→              <Input id="pf-price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="600" />
+   662→            </div>
+   663→            <div className="space-y-1.5">
+   664→              <Label htmlFor="pf-stock">Stock</Label>
+   665→              <Input id="pf-stock" inputMode="numeric" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="100" />
+   666→            </div>
+   667→          </div>
+   668→          <div className="grid grid-cols-2 gap-2">
+   669→            <div className="space-y-1.5">
+   670→              <Label>Categoria</Label>
+   671→              <Select value={category} onValueChange={setCategory}>
+   672→                <SelectTrigger><SelectValue /></SelectTrigger>
+   673→                <SelectContent>
+   674→                  <SelectItem value="agua">Água</SelectItem>
+   675→                  <SelectItem value="acessorio">Acessório</SelectItem>
+   676→                </SelectContent>
+   677→              </Select>
+   678→            </div>
+   679→            <div className="space-y-1.5">
+   680→              <Label htmlFor="pf-vol">Volume (L)</Label>
+   681→              <Input id="pf-vol" inputMode="decimal" value={volume} onChange={(e) => setVolume(e.target.value)} placeholder="5" disabled={category === 'acessorio'} />
+   682→            </div>
+   683→          </div>
+   684→        </div>
+   685→        <DialogFooter>
+   686→          <Button onClick={save} disabled={saving} className="w-full font-bold">
+   687→            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+   688→            Guardar produto
+   689→          </Button>
+   690→        </DialogFooter>
+   691→      </DialogContent>
+   692→    </Dialog>
+   693→  )
+   694→}
+   695→
+   696→// ---------------- Equipa ----------------
+   697→function TeamPanel() {
+   698→  const { couriers, reload } = useCouriers()
+   699→  const { toast } = useToast()
+   700→  const [addOpen, setAddOpen] = useState(false)
+   701→  const [name, setName] = useState('')
+   702→  const [phone, setPhone] = useState('')
+   703→  const [vehicle, setVehicle] = useState('')
+   704→  const [plate, setPlate] = useState('')
+   705→  const [saving, setSaving] = useState(false)
+   706→
+   707→  async function addCourier() {
+   708→    if (!name.trim()) return
+   709→    setSaving(true)
+   710→    try {
+   711→      await createCourier({
+   712→        name: name.trim(),
+   713→        phone: phone.trim(),
+   714→        vehicle: vehicle.trim() || 'Mota',
+   715→        plate: plate.trim(),
+   716→        latitude: -8.847,
+   717→        longitude: 13.241,
+   718→      })
+   719→      setName(''); setPhone(''); setVehicle(''); setPlate('')
+   720→      setAddOpen(false)
+   721→      reload()
+   722→      toast({ title: 'Motoboy adicionado à equipa 🛵' })
+   723→    } catch (err) {
+   724→      toast({
+   725→        title: 'Erro ao adicionar',
+   726→        description: err instanceof Error ? err.message : 'Tente novamente.',
+   727→        variant: 'destructive',
+   728→      })
+   729→    } finally {
+   730→      setSaving(false)
+   731→    }
+   732→  }
+   733→
+   734→  return (
+   735→    <div className="space-y-3">
+   736→      <Button className="h-10 w-full rounded-xl font-bold" onClick={() => setAddOpen(true)}>
+   737→        <Plus className="h-4 w-4" /> Adicionar motoboy
+   738→      </Button>
+   739→
+   740→      {couriers.map((c) => (
+   741→        <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3.5 shadow-sm">
+   742→          <span className="flex h-12 w-12 items-center justify-center rounded-2xl gota-gradient text-white shadow-md">
+   743→            <User className="h-6 w-6" />
+   744→          </span>
+   745→          <div className="min-w-0 flex-1">
+   746→            <p className="truncate text-sm font-black text-navy">{c.name}</p>
+   747→            <p className="text-xs text-muted-foreground">
+   748→              {c.phone || '—'} · {c.vehicle} {c.plate && `(${c.plate})`}
+   749→            </p>
+   750→            <p className="mt-0.5 text-[11px] text-muted-foreground">
+   751→              {c.latitude != null ? `GPS: ${c.latitude.toFixed(4)}, ${c.longitude?.toFixed(4)}` : 'sem posição'}
+   752→            </p>
+   753→          </div>
+   754→          <span
+   755→            className={cn(
+   756→              'rounded-full border px-2.5 py-1 text-[10px] font-bold',
+   757→              c.available
+   758→                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+   759→                : 'border-amber-200 bg-amber-50 text-amber-700'
+   760→            )}
+   761→          >
+   762→            {c.available ? 'disponível' : `em entrega (${c.orders?.length ?? 0})`}
+   763→          </span>
+   764→        </div>
+   765→      ))}
+   766→
+   767→      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+   768→        <DialogContent className="sm:max-w-sm">
+   769→          <DialogHeader>
+   770→            <DialogTitle>Adicionar motoboy</DialogTitle>
+   771→            <DialogDescription>O novo motoboy passa a receber entregas no painel dele.</DialogDescription>
+   772→          </DialogHeader>
+   773→          <div className="space-y-3">
+   774→            <div className="space-y-1.5">
+   775→              <Label htmlFor="cr-name">Nome</Label>
+   776→              <Input id="cr-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Manuel Neto" />
+   777→            </div>
+   778→            <div className="space-y-1.5">
+   779→              <Label htmlFor="cr-phone">Telefone</Label>
+   780→              <Input id="cr-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="923 000 333" inputMode="tel" />
+   781→            </div>
+   782→            <div className="grid grid-cols-2 gap-2">
+   783→              <div className="space-y-1.5">
+   784→                <Label htmlFor="cr-vehicle">Veículo</Label>
+   785→                <Input id="cr-vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="Mota" />
+   786→              </div>
+   787→              <div className="space-y-1.5">
+   788→                <Label htmlFor="cr-plate">Matrícula</Label>
+   789→                <Input id="cr-plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="LD-0000-AA" />
+   790→              </div>
+   791→            </div>
+   792→          </div>
+   793→          <DialogFooter>
+   794→            <Button onClick={addCourier} disabled={saving || !name.trim()} className="w-full font-bold">
+   795→              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+   796→              Adicionar à equipa
+   797→            </Button>
+   798→          </DialogFooter>
+   799→        </DialogContent>
+   800→      </Dialog>
+   801→    </div>
+   802→  )
+   803→}
+   804→

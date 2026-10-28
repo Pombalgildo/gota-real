@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useAppStore, formatKz, formatLiters, cartTotals } from '@/store/app-store'
-import { ProductArt } from '@/components/app/ProductArt'
+import { ProductPhoto } from '@/components/app/ProductPhoto'
 import { QuantityStepper } from '@/components/app/Badges'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { createOrder, updateCustomer } from '@/lib/api'
@@ -154,9 +154,7 @@ export function CheckoutSheet() {
               )}
               {cart.map(({ product, quantity }) => (
                 <div key={product.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-2.5 shadow-sm">
-                  <div className="h-16 w-16 shrink-0">
-                    <ProductArt kind={product.kind} volumeL={product.volumeL} />
-                  </div>
+                  <ProductPhoto product={product} className="h-16 w-16 shrink-0" rounded="rounded-xl" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-navy">{product.name}</p>
                     <p className="text-xs text-muted-foreground">

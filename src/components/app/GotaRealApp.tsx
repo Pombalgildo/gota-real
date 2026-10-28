@@ -1,7 +1,8 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useAppStore, cartTotals } from '@/store/app-store'
+import { useProducts } from '@/components/app/hooks'
 import { OnboardingView } from '@/components/app/OnboardingView'
 import { HomeView } from '@/components/app/HomeView'
 import { ShopView } from '@/components/app/ShopView'
@@ -53,17 +54,28 @@ export function GotaRealApp() {
     )
   }
 
-  if (!customer) return <OnboardingView />
+  // PAINÉIS DA EQUIPA — acessíveis directamente do ecrã de boas-vindas,
+  // sem precisar de conta de cliente (Administrador da Central e Motoboy)
   if (mode === 'central') return <CentralView />
   if (mode === 'motoboy') return <MotoboyView />
+
+  if (!customer) return <OnboardingView />
 
   return <CustomerApp />
 }
 
 function CustomerApp() {
-  const { customer, tab, setTab, cart, setCheckoutOpen } = useAppStore()
+  const { customer, tab, setTab, cart, setCheckoutOpen, syncCartProducts } = useAppStore()
+  const { products } = useProducts()
   const totals = cartTotals(cart)
   const firstName = customer?.name?.split(' ')[0] ?? 'cliente'
+
+  // mantém o carrinho sempre actualizado com a base de dados real:
+  // se o administrador mudar preços, fotos ou desactivar artigos,
+  // o pedido do cliente reflecte as alterações na hora
+  useEffect(() => {
+    if (products.length > 0) syncCartProducts(products)
+  }, [products, syncCartProducts])
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">

@@ -42,6 +42,9 @@ model Product {
   stock       Int         @default(100)
   active      Boolean     @default(true)
   sortOrder   Int         @default(0)
+  // FOTO REAL do artigo (data URL base64, ex.: data:image/jpeg;base64,...)
+  // colocada pelo administrador na Central e visível na loja do cliente
+  image       String?
   createdAt   DateTime    @default(now())
   orderItems  OrderItem[]
 }

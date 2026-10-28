@@ -26,6 +26,8 @@ export interface Product {
   stock: number
   active: boolean
   sortOrder: number
+  // foto real do artigo (data URL base64) enviada pelo administrador
+  image?: string | null
   createdAt: string
 }
 

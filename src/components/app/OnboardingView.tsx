@@ -26,12 +26,13 @@ import {
   MapPin,
   ShieldCheck,
   Sparkles,
+  Warehouse,
 } from 'lucide-react'
 
 type Step = 'boas-vindas' | 'dados' | 'localizacao'
 
 export function OnboardingView() {
-  const { setCustomer } = useAppStore()
+  const { setCustomer, setMode } = useAppStore()
   const { toast } = useToast()
 
   const [step, setStep] = useState<Step>('boas-vindas')
@@ -161,6 +162,40 @@ export function OnboardingView() {
                   </li>
                 ))}
               </ul>
+
+              {/* ---------- ACESSO DA EQUIPA: CENTRAL (ADMIN) E MOTOBOY ---------- */}
+              <div className="glass-card rounded-2xl p-4 text-white">
+                <p className="text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#BDE3F5]">
+                  Acesso da equipa Gota REAL
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2.5">
+                  <button
+                    onClick={() => setMode('central')}
+                    className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-white/95 p-3 shadow-md transition-all duration-150 hover:bg-white active:scale-[0.97]"
+                    aria-label="Entrar no painel da Central (Administrador)"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl gota-gradient text-white shadow">
+                      <Warehouse className="h-5 w-5" />
+                    </span>
+                    <span className="text-xs font-black leading-tight text-navy">CENTRAL</span>
+                    <span className="text-[10px] font-semibold leading-tight text-muted-foreground">Administrador</span>
+                  </button>
+                  <button
+                    onClick={() => setMode('motoboy')}
+                    className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-white/95 p-3 shadow-md transition-all duration-150 hover:bg-white active:scale-[0.97]"
+                    aria-label="Entrar no painel do Motoboy (Entregador)"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl gota-gradient text-white shadow">
+                      <Bike className="h-5 w-5" />
+                    </span>
+                    <span className="text-xs font-black leading-tight text-navy">MOTOBOY</span>
+                    <span className="text-[10px] font-semibold leading-tight text-muted-foreground">Entregador</span>
+                  </button>
+                </div>
+                <p className="mt-2.5 text-center text-[10px] leading-snug text-[#cfe7f8]">
+                  Receba pedidos, gerencie a loja e faça entregas com GPS.
+                </p>
+              </div>
             </div>
           )}
 

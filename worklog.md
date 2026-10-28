@@ -24,6 +24,28 @@ Work Log:
 Stage Summary:
 - App 100% funcional e verificada no navegador, responsiva (mobile-first + desktop)
 - Tempo real via WebSocket (pedidos, GPS do motoboy, feedback) funciona entre painéis
-- Dados de demonstração na base: pedidos #1001 (entregue, cash) e #1002 (pendente, TPA), 1 sugestão respondida
 - Identidade visual azul/dourado fiel ao logo Gota REAL; preços em Kwanzas (Kz)
 - Serviço realtime em mini-services/realtime (porta 3003), iniciado com bun run dev
+
+---
+Task ID: 2
+Agent: main (Z.ai)
+Task: Parte do ADMINISTRADOR (receber pedidos/compras), parte do MOTOBOY (pedido + dados do cliente + entrega GPS) e gestão da LOJA pelo admin (FOTO REAL dos artigos + alteração de preços visível ao cliente)
+
+Work Log:
+- Acesso directo da equipa: botões grandes "CENTRAL (Administrador)" e "MOTOBOY (Entregador)" no ecrã de boas-vindas; modo persistido entre recargas (GotaRealApp verifica mode antes do login do cliente)
+- Schema Prisma: campo `image String?` (data URL base64 da FOTO REAL) em Product; db:push sem perda de dados
+- APIs: POST/PATCH /api/products aceitam image (validação data:image/*, limite 1,5MB) e emitem evento realtime 'products:update' a todos os clientes ligados
+- Upload de foto real no formulário da Central: TIRAR FOTO (câmara do telemóvel), GALERIA/PC, pré-visualização, remover foto; compressão client-side (canvas 900px, JPEG 0.82) em src/lib/image.ts
+- Preço em destaque no formulário (caixa dourada "PREÇO DE VENDA (Kz) — visível na loja" com pré-visualização formatada); descrição editável; separador renomeado "Produtos" → "Loja"
+- Componente ProductPhoto: mostra a foto real do artigo (base64) com fallback para a ilustração SVG; aplicado na Loja, Início (destaques + pedido rápido) e Checkout
+- useProducts escuta 'products:update' → a loja do cliente actualiza preços/fotos sozinha; syncCartProducts actualiza o carrinho e remove artigos desactivados; servidor recalcula sempre o total com os preços da base de dados
+- Painel do Motoboy confirmado: recebe pedido em tempo real com nome, telefone, endereço, GPS (distância + ETA), pagamento TPA/CASH a receber, itens, notas; GPS real do telemóvel ou simulação; botão Navegar (Google Maps); ligar ao cliente
+- Reinício do servidor dev necessário para carregar o novo Prisma Client (erro 500 "Unknown argument image" resolvido)
+- Verificação e2e com 3 sessões de navegador em paralelo (cliente + admin + motoboy): foto real do logo carregada pelo admin (66KB na base) → visível na loja do cliente; preço 600→650 Kz propagado em tempo real; pedido nº 1005 TPA → confirmado → atribuído a Domingos → entrega com GPS ao vivo (962m→394m→chegada) → concluído 12:31 com tempos (solicitado 12:29, total 2 min); VLM confirmou layouts mobile/desktop sem sobreposições
+
+Stage Summary:
+- Administrador: recebe pedidos e compras em tempo real, confirma, atribui motoboy, cancela, responde a feedback e gerencia a loja (fotos reais + preços + stock + activar/desactivar)
+- Motoboy: recebe o pedido do cliente com todos os dados, entrega via GPS (real ou simulado) visível ao cliente no mapa ao vivo
+- Loja: fotos reais e preços colocados pelo admin ficam imediatamente visíveis ao cliente (base de dados SQLite real + WebSocket)
+- Nota: foto de teste (logo) no Bidão 5L; o admin pode substituir por fotos reais dos artigos na hora

@@ -5,7 +5,8 @@ import { useAppStore, formatKz, formatLiters, formatTime, formatDateTime, durati
 import { useAllOrders, useFeedback, useCouriers, useProducts } from '@/components/app/hooks'
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { OrderTimeline } from '@/components/app/OrderTimeline'
-import { ProductArt } from '@/components/app/ProductArt'
+import { ProductPhoto } from '@/components/app/ProductPhoto'
+import { resizeImageToDataUrl } from '@/lib/image'
 import { orderAction, respondFeedback, updateProduct, createProduct, createCourier } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -22,18 +23,23 @@ import { cn } from '@/lib/utils'
 import {
   ArrowLeft,
   Bike,
+  Camera,
   Check,
   ClipboardList,
+  ImagePlus,
   Loader2,
   MessageSquareWarning,
   Package,
+  Pencil,
   Phone,
   Plus,
   Reply,
   Send,
+  Store,
   Timer,
   TrendingUp,
   Truck,
+  Trash2,
   User,
   Warehouse,
   XCircle,
@@ -144,7 +150,7 @@ function CentralTabs() {
           <MessageSquareWarning className="mr-1 h-3.5 w-3.5" /> Mensagens
         </TabsTrigger>
         <TabsTrigger value="produtos" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
-          <Package className="mr-1 h-3.5 w-3.5" /> Produtos
+          <Store className="mr-1 h-3.5 w-3.5" /> Loja
         </TabsTrigger>
         <TabsTrigger value="equipa" className="rounded-lg text-xs font-bold data-[state=active]:bg-white">
           <Bike className="mr-1 h-3.5 w-3.5" /> Equipa
@@ -539,21 +545,42 @@ function ProductsPanel() {
   const [addOpen, setAddOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
 
+  const withPhoto = products.filter((p) => p.image).length
+
   return (
     <div className="space-y-3">
-      <Button className="h-10 w-full rounded-xl font-bold" onClick={() => setAddOpen(true)}>
+      {/* instrução para o administrador */}
+      <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-secondary/50 p-3.5">
+        <p className="flex items-center gap-2 text-sm font-black text-navy">
+          <ImagePlus className="h-4.5 w-4.5 text-primary" /> Gestão da LOJA
+        </p>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">
+          Coloque a <b>foto real</b> de cada artigo, <b>altere os preços</b> e o stock.
+          Assim que guardar, tudo fica <b>visível na loja do cliente</b> na hora.
+          ({withPhoto}/{products.length} artigos já têm foto real)
+        </p>
+      </div>
+
+      <Button className="h-11 w-full rounded-xl font-bold" onClick={() => setAddOpen(true)}>
         <Plus className="h-4 w-4" /> Novo produto à venda
       </Button>
 
       {products.map((p) => (
         <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3 shadow-sm">
-          <div className="h-16 w-16 shrink-0">
-            <ProductArt kind={p.kind} volumeL={p.volumeL} />
+          <div className="relative h-16 w-16 shrink-0">
+            <ProductPhoto product={p} className="h-16 w-16" rounded="rounded-xl" />
+            {!p.image && (
+              <span className="absolute -bottom-1 -right-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-black text-amber-700 ring-1 ring-amber-300">
+                sem foto
+              </span>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-black text-navy">{p.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatKz(p.priceKz)} · stock {p.stock} · {p.category === 'agua' ? 'água' : 'acessório'}
+            <p className="text-sm font-black text-primary">{formatKz(p.priceKz)}</p>
+            <p className="text-[11px] text-muted-foreground">
+              stock {p.stock} · {p.category === 'agua' ? 'água' : 'acessório'}
+              {!p.active && <span className="ml-1 font-black text-red-500">· inactivo</span>}
             </p>
           </div>
           <Switch
@@ -564,8 +591,13 @@ function ProductsPanel() {
             }}
             aria-label={`Activar/desactivar ${p.name}`}
           />
-          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => setEditing(p)} aria-label={`Editar ${p.name}`}>
-            <Warehouse className="h-4 w-4" />
+          <Button
+            variant="outline"
+            className="h-10 shrink-0 gap-1.5 rounded-xl px-3 text-xs font-black"
+            onClick={() => setEditing(p)}
+            aria-label={`Editar ${p.name}`}
+          >
+            <Pencil className="h-3.5 w-3.5" /> EDITAR
           </Button>
         </div>
       ))}
@@ -604,7 +636,35 @@ function ProductFormDialog({
   const [stock, setStock] = useState(String(product?.stock ?? '50'))
   const [category, setCategory] = useState(product?.category ?? 'agua')
   const [volume, setVolume] = useState(String(product?.volumeL ?? ''))
+  const [description, setDescription] = useState(product?.description ?? '')
+  // FOTO REAL do artigo (data URL base64)
+  const [image, setImage] = useState<string | null>(product?.image ?? null)
+  const [imgBusy, setImgBusy] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const fileInputId = `pf-photo-${product?.id ?? 'novo'}`
+  const cameraInputId = `pf-camera-${product?.id ?? 'novo'}`
+
+  async function onPickPhoto(file: File | undefined) {
+    if (!file) return
+    setImgBusy(true)
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 900, 0.82)
+      setImage(dataUrl)
+      toast({
+        title: 'Foto carregada ✅',
+        description: 'Não esqueça de guardar para publicar na loja.',
+      })
+    } catch (err) {
+      toast({
+        title: 'Foto inválida',
+        description: err instanceof Error ? err.message : 'Escolha outra imagem.',
+        variant: 'destructive',
+      })
+    } finally {
+      setImgBusy(false)
+    }
+  }
 
   async function save() {
     if (!name.trim() || !price) {
@@ -615,19 +675,21 @@ function ProductFormDialog({
     try {
       const body = {
         name: name.trim(),
+        description: description.trim(),
         priceKz: Number(price),
         stock: Number(stock) || 0,
         category,
         kind: category === 'agua' ? (Number(volume) >= 5 ? 'garrafao' : 'garrafa') : 'acessorio',
         volumeL: Number(volume) || 0,
-        unitLabel: category === 'agua' ? `${volume ?? ''}L` : 'unidade',
+        unitLabel: category === 'agua' ? `${volume || ''}L`.trim() : 'unidade',
+        image, // null remove a foto, data URL guarda a foto real
       }
       if (product) {
         await updateProduct(product.id, body)
-        toast({ title: 'Produto actualizado ✅' })
+        toast({ title: 'Produto actualizado ✅', description: 'A loja do cliente já mostra as alterações.' })
       } else {
         await createProduct(body)
-        toast({ title: 'Produto criado e à venda! ✅' })
+        toast({ title: 'Produto criado e à venda! ✅', description: 'Já está visível na loja do cliente.' })
       }
       onSaved()
     } catch (err) {
@@ -643,49 +705,152 @@ function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{product ? 'Editar produto' : 'Novo produto'}</DialogTitle>
+          <DialogTitle>{product ? 'Editar artigo da loja' : 'Novo artigo da loja'}</DialogTitle>
           <DialogDescription>
-            Produtos activos ficam disponíveis na loja do cliente.
+            Artigos activos ficam disponíveis na <b>loja do cliente</b> assim que guardar.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* ---------- FOTO REAL DO ARTIGO ---------- */}
+          <div className="space-y-2">
+            <Label className="text-sm font-black text-navy">
+              <Camera className="mr-1 inline h-4 w-4 text-primary" /> FOTO REAL do artigo
+            </Label>
+            {image ? (
+              <div className="relative overflow-hidden rounded-2xl border-2 border-primary/30 bg-secondary/50">
+                <img src={image} alt="Pré-visualização da foto real do artigo" className="mx-auto max-h-44 w-auto object-contain" />
+                <button
+                  type="button"
+                  onClick={() => setImage(null)}
+                  className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition-all hover:bg-red-600 active:scale-90"
+                  aria-label="Remover foto"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <span className="absolute bottom-2 left-2 rounded-full bg-navy/85 px-2.5 py-1 text-[10px] font-black text-white">
+                  foto real — visível na loja do cliente
+                </span>
+              </div>
+            ) : (
+              <label
+                htmlFor={fileInputId}
+                className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-primary/40 bg-secondary/40 p-4 text-center transition-all hover:border-primary hover:bg-secondary/70"
+              >
+                {imgBusy ? (
+                  <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                ) : (
+                  <ImagePlus className="h-7 w-7 text-primary" />
+                )}
+                <span className="text-sm font-black text-navy">Toque para escolher a foto</span>
+                <span className="text-[11px] leading-snug text-muted-foreground">
+                  A foto real do artigo fica visível para o cliente na loja
+                </span>
+              </label>
+            )}
+            <input
+              id={fileInputId}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                onPickPhoto(e.target.files?.[0])
+                e.target.value = ''
+              }}
+            />
+            {/* câmara directa (telemóvel) */}
+            <input
+              id={cameraInputId}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                onPickPhoto(e.target.files?.[0])
+                e.target.value = ''
+              }}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl text-xs font-black"
+                onClick={() => document.getElementById(cameraInputId)?.click()}
+              >
+                <Camera className="h-4 w-4 text-primary" /> TIRAR FOTO
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl text-xs font-black"
+                onClick={() => document.getElementById(fileInputId)?.click()}
+              >
+                <ImagePlus className="h-4 w-4 text-primary" /> GALERIA / PC
+              </Button>
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="pf-name">Nome</Label>
             <Input id="pf-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Bidão 5L" />
           </div>
+
+          {/* ---------- PREÇO em destaque ---------- */}
+          <div className="rounded-xl border-2 border-gold/50 bg-gold/10 p-3">
+            <Label htmlFor="pf-price" className="text-sm font-black text-[#6B5410]">
+              PREÇO DE VENDA (Kz) — visível na loja
+            </Label>
+            <Input
+              id="pf-price"
+              inputMode="numeric"
+              value={price}
+              onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="600"
+              className="mt-1.5 h-12 border-2 border-gold/60 bg-white text-xl font-black"
+            />
+            {price && (
+              <p className="mt-1 text-xs font-bold text-[#6B5410]">
+                O cliente verá: <b>{Number(price).toLocaleString('pt-AO')} Kz</b>
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="pf-price">Preço (Kz)</Label>
-              <Input id="pf-price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="600" />
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="pf-stock">Stock</Label>
-              <Input id="pf-stock" inputMode="numeric" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="100" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label>Categoria</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="agua">Água</SelectItem>
-                  <SelectItem value="acessorio">Acessório</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input id="pf-stock" inputMode="numeric" value={stock} onChange={(e) => setStock(e.target.value.replace(/[^0-9]/g, ''))} placeholder="100" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pf-vol">Volume (L)</Label>
               <Input id="pf-vol" inputMode="decimal" value={volume} onChange={(e) => setVolume(e.target.value)} placeholder="5" disabled={category === 'acessorio'} />
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label>Categoria</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="agua">Água</SelectItem>
+                <SelectItem value="acessorio">Acessório</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-desc">Descrição (mostrada na loja)</Label>
+            <Textarea
+              id="pf-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ex.: Água purificada em bidão de 5 litros, retornável."
+              rows={2}
+            />
+          </div>
         </div>
         <DialogFooter>
-          <Button onClick={save} disabled={saving} className="w-full font-bold">
+          <Button onClick={save} disabled={saving} className="h-11 w-full rounded-xl font-black">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Guardar produto
+            GUARDAR E PUBLICAR NA LOJA
           </Button>
         </DialogFooter>
       </DialogContent>
