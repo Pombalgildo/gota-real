@@ -1,0 +1,273 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-gota-gold: var(--gota-gold);
+  --color-gota-navy: var(--gota-navy);
+  --color-gota-sky: var(--gota-sky);
+  --color-gota-deep: var(--gota-deep);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 1rem;
+  /* Paleta Gota REAL: azul royal + dourado (coroa) */
+  --gota-navy: #0a3d7c;
+  --gota-deep: #072a55;
+  --gota-sky: #37b6f5;
+  --gota-gold: #d9a62e;
+
+  --background: #f2f9fe;
+  --foreground: #0b2545;
+  --card: #ffffff;
+  --card-foreground: #0b2545;
+  --popover: #ffffff;
+  --popover-foreground: #0b2545;
+  --primary: #0e63b8;
+  --primary-foreground: #ffffff;
+  --secondary: #e3f0fb;
+  --secondary-foreground: #0a3d7c;
+  --muted: #edf5fc;
+  --muted-foreground: #5b7a99;
+  --accent: #e9f4fd;
+  --accent-foreground: #0a3d7c;
+  --destructive: #d92d20;
+  --border: #d7e6f4;
+  --input: #cfe2f3;
+  --ring: #0e63b8;
+  --chart-1: #0e63b8;
+  --chart-2: #37b6f5;
+  --chart-3: #0a3d7c;
+  --chart-4: #d9a62e;
+  --chart-5: #7ec8e3;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0b2545;
+  --sidebar-primary: #0e63b8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9f4fd;
+  --sidebar-accent-foreground: #0a3d7c;
+  --sidebar-border: #d7e6f4;
+  --sidebar-ring: #0e63b8;
+}
+
+.dark {
+  --background: #072a55;
+  --foreground: #eaf4fc;
+  --card: #0a3d7c;
+  --card-foreground: #eaf4fc;
+  --popover: #0a3d7c;
+  --popover-foreground: #eaf4fc;
+  --primary: #37b6f5;
+  --primary-foreground: #062742;
+  --secondary: #0e4d94;
+  --secondary-foreground: #eaf4fc;
+  --muted: #0e4d94;
+  --muted-foreground: #9fc3e2;
+  --accent: #0e4d94;
+  --accent-foreground: #eaf4fc;
+  --destructive: #f0635a;
+  --border: rgba(199, 230, 246, 0.2);
+  --input: rgba(199, 230, 246, 0.25);
+  --ring: #37b6f5;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ============ Identidade Gota REAL ============ */
+
+/* Letra cursiva da palavra "Gota" (logo) */
+.font-script {
+  font-family: "Brush Script MT", "Segoe Script", "Lucida Handwriting", "Apple Chancery", cursive;
+  letter-spacing: 0.02em;
+}
+
+.bg-navy {
+  background-color: var(--gota-navy);
+}
+.bg-navy-deep {
+  background-color: var(--gota-deep);
+}
+.text-navy {
+  color: var(--gota-navy);
+}
+.bg-gold {
+  background-color: var(--gota-gold);
+}
+.text-gold {
+  color: var(--gota-gold);
+}
+.border-gold {
+  border-color: var(--gota-gold);
+}
+
+/* Gradiente principal (fundo do cabeçalho / herói) */
+.gota-gradient {
+  background: linear-gradient(135deg, #072a55 0%, #0a3d7c 45%, #0e63b8 100%);
+}
+.gota-gradient-sky {
+  background: linear-gradient(160deg, #dff1fd 0%, #f2f9fe 60%, #ffffff 100%);
+}
+.gold-gradient {
+  background: linear-gradient(135deg, #e8b84a 0%, #d9a62e 50%, #b8871f 100%);
+}
+
+/* Cartão de vidro sobre fundos azuis */
+.glass-card {
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+/* Botão dourado (acção destacada) */
+.btn-gold {
+  background: linear-gradient(135deg, #e8b84a 0%, #d9a62e 55%, #c28f1c 100%);
+  color: #3a2a05;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(217, 166, 46, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.btn-gold:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(217, 166, 46, 0.5);
+}
+.btn-gold:active {
+  transform: translateY(0);
+}
+.btn-gold:disabled {
+  filter: grayscale(0.4) brightness(0.9);
+  opacity: 0.7;
+}
+
+/* Ondas decorativas (divisores) */
+.wave-divider {
+  display: block;
+  width: 100%;
+  height: 42px;
+}
+
+/* Gota de água animada (flutuação suave) */
+@keyframes gota-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+.animate-gota-float {
+  animation: gota-float 4.5s ease-in-out infinite;
+}
+
+/* Pulso GPS ao vivo */
+@keyframes gps-ping {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  80%, 100% { transform: scale(2.4); opacity: 0; }
+}
+.animate-gps-ping {
+  animation: gps-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Brilho dourado no destaque */
+@keyframes gold-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.gold-shimmer-text {
+  background: linear-gradient(110deg, #d9a62e 20%, #f7e08b 40%, #d9a62e 60%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gold-shimmer 3.5s linear infinite;
+}
+
+/* Barra de rolagem personalizada */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #b9d6ec;
+  border-radius: 999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #8fbde0;
+}
+
+/* Linha tracejada animada no mapa (trajecto do motoboy) */
+@keyframes dash-move {
+  to { stroke-dashoffset: -24; }
+}
+.route-dash {
+  stroke-dasharray: 8 6;
+  animation: dash-move 1.2s linear infinite;
+}
+
+/* Estado "ao vivo" */
+.live-dot {
+  position: relative;
+  display: inline-flex;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #22c55e;
+}
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #22c55e;
+  animation: gps-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Seguro para áreas com notch (iOS) */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

@@ -1,0 +1,12 @@
+{
+  "name": "gota-real-realtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serviço de tempo real (WebSocket) do Gota REAL - pedidos, GPS do motoboy e feedback ao vivo",
+  "scripts": {
+    "dev": "bun --hot index.ts"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.4"
+  }
+}
