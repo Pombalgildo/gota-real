@@ -2,8 +2,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ESQUEMA DE PRODUÇÃO — PostgreSQL
+// Usado na Vercel e em qualquer servidor com Postgres.
+// O ambiente de desenvolvimento local (SQLite) usa o ficheiro
+// prisma/schema.local.prisma — mantenha os dois em sincronia.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

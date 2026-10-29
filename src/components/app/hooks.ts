@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Courier, Feedback, Order, Product, StoreConfig, User } from '@/lib/types'
 import {
   fetchAllOrders,
@@ -11,11 +11,31 @@ import {
   fetchStore,
   fetchUsers,
 } from '@/lib/api'
-import { getRealtimeSocket } from '@/lib/realtime-client'
+import { getRealtimeSocket, isRealtimeConnected } from '@/lib/realtime-client'
 
 /**
- * Hooks de dados com actualização em tempo real via WebSocket.
+ * Hooks de dados com actualização em tempo real.
+ *
+ * WebSockets quando disponíveis (dev/preview) + POLLING DE RESERVA
+ * quando não há sockets (produção na Vercel serverless): cada hook
+ * recarrega os dados periodicamente enquanto os sockets estiverem
+ * desligados — a app fica sempre actualizada em qualquer plataforma.
  */
+
+/**
+ * Recarrega `reload` a cada `intervalMs` SÓ quando os WebSockets
+ * não estão ligados. Com sockets activos, não faz pedidos extra.
+ */
+function usePollingFallback(reload: () => void, intervalMs: number) {
+  const ref = useRef(reload)
+  ref.current = reload
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!isRealtimeConnected()) ref.current()
+    }, intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+}
 
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([])
@@ -46,6 +66,9 @@ export function useProducts() {
       socket.off('products:update', onProductsUpdate)
     }
   }, [reload])
+
+  // reserva: preços e fotos da loja refrescam a cada 30s sem sockets
+  usePollingFallback(reload, 30_000)
 
   return { products, loading, reload }
 }
@@ -99,6 +122,9 @@ export function useCustomerOrders(customerId: string | null | undefined) {
     }
   }, [customerId])
 
+  // reserva: o cliente vê confirmação/entrega em até 8s sem sockets
+  usePollingFallback(reload, 8_000)
+
   return { orders, loading, reload }
 }
 
@@ -142,6 +168,9 @@ export function useAllOrders() {
     }
   }, [])
 
+  // reserva: a CENTRAL recebe pedidos novos em até 6s sem sockets
+  usePollingFallback(reload, 6_000)
+
   return { orders, loading, reload }
 }
 
@@ -163,6 +192,9 @@ export function useCouriers() {
   useEffect(() => {
     reload()
   }, [reload])
+
+  // reserva: estado/posição dos motoboys refresca a cada 15s
+  usePollingFallback(reload, 15_000)
 
   return { couriers, loading, reload }
 }
@@ -209,6 +241,9 @@ export function useFeedback(customerId?: string | null) {
     }
   }, [customerId])
 
+  // reserva: sugestões/reclamações chegam em até 15s sem sockets
+  usePollingFallback(reload, 15_000)
+
   return { feedbacks, loading, reload }
 }
 
@@ -246,6 +281,9 @@ export function useUsers(token: string | null | undefined) {
     }
   }, [reload])
 
+  // reserva: perfis criados/banidos pela central aparecem em até 20s
+  usePollingFallback(reload, 20_000)
+
   return { users, loading, reload }
 }
 
@@ -280,41 +318,45 @@ export function useStoreConfig() {
     }
   }, [])
 
+  // reserva: dados da loja (contactos, taxa) refrescam a cada 60s
+  usePollingFallback(reload, 60_000)
+
   return { store, loading, reload }
 }
 
-/** Posição GPS ao vivo de um motoboy (via WebSocket + polling leve) */
+/** Posição GPS ao vivo de um motoboy (WebSocket + polling de reserva) */
 export function useCourierPosition(courierId?: string | null) {
-  const [state, setState] = useState<{
-    id: string | null
-    pos: { lat: number; lng: number } | null
-  }>({ id: null, pos: null })
+  const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null)
 
-  // sincroniza com estado actual do motoboy quando o id muda (async)
-  useEffect(() => {
+  // posição gravada na base de dados pelo motoboy (última conhecida)
+  const reload = useCallback(async () => {
     if (!courierId) return
-    let cancelled = false
-    fetchCouriers()
-      .then(({ couriers }) => {
-        if (cancelled) return
-        const c = couriers.find((x) => x.id === courierId)
-        if (c?.latitude != null && c?.longitude != null) {
-          setState((prev) =>
-            prev.id === courierId ? prev : { id: courierId, pos: { lat: c.latitude!, lng: c.longitude! } }
-          )
-        }
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
+    try {
+      const { couriers } = await fetchCouriers()
+      const c = couriers.find((x) => x.id === courierId)
+      if (c?.latitude != null && c?.longitude != null) {
+        setPos({ lat: c.latitude, lng: c.longitude })
+      }
+    } catch {
+      // silencioso
     }
   }, [courierId])
 
   useEffect(() => {
+    setPos(null)
+    reload()
+  }, [reload])
+
+  // reserva: sem sockets, a posição do motoboy refresca a cada 5s
+  // (o motoboy grava a posição na base a cada movimento)
+  usePollingFallback(reload, 5_000)
+
+  // com sockets: actualização instantânea
+  useEffect(() => {
     const socket = getRealtimeSocket()
     const onMove = (data: { courierId: string; lat: number; lng: number }) => {
       if (!data || data.courierId !== courierId) return
-      setState({ id: courierId, pos: { lat: data.lat, lng: data.lng } })
+      setPos({ lat: data.lat, lng: data.lng })
     }
     socket.on('courier:position', onMove)
     return () => {
@@ -322,5 +364,5 @@ export function useCourierPosition(courierId?: string | null) {
     }
   }, [courierId])
 
-  return state.id === courierId ? state.pos : null
+  return pos
 }

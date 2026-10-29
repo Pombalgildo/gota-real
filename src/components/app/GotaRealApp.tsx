@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { useAppStore, cartTotals } from '@/store/app-store'
 import { useProducts } from '@/components/app/hooks'
+import { fetchCustomer } from '@/lib/api'
 import { OnboardingView } from '@/components/app/OnboardingView'
 import { HomeView } from '@/components/app/HomeView'
 import { ShopView } from '@/components/app/ShopView'
@@ -121,6 +122,28 @@ function CustomerApp() {
     return () => {
       socket.off('auth:banned', onBan)
     }
+  }, [customer, setCustomer])
+
+  // reserva (sem WebSockets, ex. produção na Vercel): confirma o estado
+  // da conta junto à base de dados a cada 30s — o banimento aplica-se
+  // mesmo que o cliente mantenha a app aberta sem recarregar
+  useEffect(() => {
+    if (!customer) return
+    const id = setInterval(async () => {
+      try {
+        const { customer: fresh } = await fetchCustomer(customer.id)
+        if (fresh && (fresh.banned !== customer.banned || fresh.banReason !== customer.banReason)) {
+          setCustomer({
+            ...customer,
+            banned: fresh.banned,
+            banReason: fresh.banReason,
+          } as typeof customer)
+        }
+      } catch {
+        // silencioso — sem rede, mantém o estado actual
+      }
+    }, 30_000)
+    return () => clearInterval(id)
   }, [customer, setCustomer])
 
   if (customer?.banned) return <BannedScreen />

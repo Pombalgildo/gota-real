@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ESQUEMA LOCAL (desenvolvimento) — SQLite
+// Cópia de prisma/schema.prisma (PostgreSQL de produção).
+// Mantenha os dois ficheiros em sincronia ao alterar modelos.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Cliente ----------
+model Customer {
+  id             String    @id @default(cuid())
+  name           String
+  phone          String    @unique
+  email          String?
+  address        String    @default("")
+  latitude       Float?
+  longitude      Float?
+  // "exata" = capturada no local exacto de entrega (cadastro)
+  // "auto"  = detectada automaticamente (provisória)
+  // "atualizada" = recapturada depois do cadastro
+  locationSource String    @default("auto")
+  locationNote   String?
+  // FOTO DE PERFIL do cliente (data URL base64) — enviada pelo próprio
+  // no Perfil ou colocada pelo administrador na Central
+  photo          String?
+  // banimento por má conduta (aplicado pelo administrador)
+  banned         Boolean   @default(false)
+  banReason      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  orders         Order[]
+  feedbacks      Feedback[]
+  user           User?
+}
+
+// ---------- Produto ----------
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  description String      @default("")
+  // "agua" | "acessorio"
+  category    String      @default("agua")
+  // "bidon" | "garrafao" | "garrafa" | "pack" | "acessorio"
+  kind        String      @default("bidon")
+  volumeL     Float       @default(0)
+  priceKz     Float
+  unitLabel   String      @default("")
+  stock       Int         @default(100)
+  active      Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  // FOTO REAL do artigo (data URL base64, ex.: data:image/jpeg;base64,...)
+  // colocada pelo administrador na Central e visível na loja do cliente
+  image       String?
+  createdAt   DateTime    @default(now())
+  orderItems  OrderItem[]
+}
+
+// ---------- Motoboy (Entregador) ----------
+model Courier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @default("")
+  vehicle   String   @default("Mota")
+  plate     String   @default("")
+  latitude  Float?
+  longitude Float?
+  available Boolean  @default(true)
+  createdAt DateTime @default(now())
+  orders    Order[]
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+// ---------- Utilizador (login por perfil) ----------
+// Perfis: "ADMIN" (administrador), "MOTOBOY" (entregador), "CLIENTE"
+model User {
+  id         String    @id @default(cuid())
+  name       String
+  // e-mail de entrada (clientes sem e-mail usam <telefone>@clientes.gotareal.ao)
+  email      String    @unique
+  phone      String    @default("")
+  // senha guardada como hash scrypt (salt:hash) — nunca em texto simples
+  password   String
+  role       String    @default("CLIENTE")
+  // FOTO DE PERFIL (data URL base64): administrador, motoboy ou cliente
+  photo      String?
+  // perfil activo (o administrador pode desactivar trabalhadores)
+  active     Boolean   @default(true)
+  // banimento por má conduta (clientes)
+  banned     Boolean   @default(false)
+  banReason  String?
+  customerId String?   @unique
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  courier    Courier?
+  sessions   Session[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+// ---------- Sessão de entrada ----------
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// ---------- Dados da loja (preenchidos pelo administrador) ----------
+model StoreConfig {
+  id            String   @id @default("main")
+  name          String   @default("Gota REAL")
+  tagline       String   @default("")
+  phone         String   @default("")
+  whatsapp      String   @default("")
+  address       String   @default("")
+  hours         String   @default("")
+  deliveryFeeKz Float    @default(0)
+  minOrderKz    Float    @default(0)
+  note          String   @default("")
+  updatedAt     DateTime @updatedAt
+}
+
+// ---------- Pedido ----------
+model Order {
+  id            String      @id @default(cuid())
+  number        Int         @unique
+  customerId    String
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  items         OrderItem[]
+  totalKz       Float       @default(0)
+  totalLiters   Float       @default(0)
+  // "TPA" | "CASH"
+  paymentMethod String      @default("CASH")
+  // "pendente" | "confirmado" | "em_transito" | "entregue" | "cancelado"
+  status        String      @default("pendente")
+  notes         String?
+  address       String      @default("")
+  latitude      Float?
+  longitude     Float?
+  courierId     String?
+  courier       Courier?    @relation(fields: [courierId], references: [id])
+  // Gestão de tempo: momento que pediu e que recebeu
+  requestedAt   DateTime    @default(now())
+  confirmedAt   DateTime?
+  dispatchedAt  DateTime?
+  deliveredAt   DateTime?
+  cancelledAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+// ---------- Item do Pedido ----------
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  productName String
+  unitLabel   String  @default("")
+  unitPriceKz Float
+  quantity    Int
+  volumeL     Float   @default(0)
+}
+
+// ---------- Sugestões e Reclamações ----------
+model Feedback {
+  id          String    @id @default(cuid())
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  // "sugestao" | "reclamacao"
+  type        String
+  subject     String
+  message     String
+  // "aberto" | "respondido"
+  status      String    @default("aberto")
+  response    String?
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+}

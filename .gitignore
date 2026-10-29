@@ -1,4 +1,4 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# See https://help.github.com/articles/ignoring-files/ for more information.
 
 # dependencies
 node_modules
@@ -23,32 +23,44 @@ node_modules
 # misc
 .DS_Store
 *.pem
+*.tsbuildinfo
+next-env.d.ts
 
-# debug
+# debug / logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — NUNCA commitar (contém a ligação à base de dados)
+.env
+.env.*
+!.env.example
 
 # vercel
 .vercel
 
+# base de dados local (dados reais de clientes — nunca para o GitHub)
+db/
+*.db
+*.db-journal
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ambiente de desenvolvimento / artefactos que não fazem parte da app
+/upload/
+/download/
+/tool-results/
+/.zscripts/
+/tests/
+/examples/
+/skills/
+/worklog.md
 local-*
 .claude
 .z-ai-config
-*.log
-dev.log
-dev.out.log
-test
 prompt
+mini-services/**/node_modules/
 
-server.log
-# Skills directory
-/skills/
+# capturas de ecrã e análises de teste
+scripts/*.png
+scripts/vlm-*.json
