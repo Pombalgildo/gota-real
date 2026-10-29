@@ -21,6 +21,9 @@ model Customer {
   // "atualizada" = recapturada depois do cadastro
   locationSource String    @default("auto")
   locationNote   String?
+  // FOTO DE PERFIL do cliente (data URL base64) — enviada pelo próprio
+  // no Perfil ou colocada pelo administrador na Central
+  photo          String?
   // banimento por má conduta (aplicado pelo administrador)
   banned         Boolean   @default(false)
   banReason      String?
@@ -80,6 +83,8 @@ model User {
   // senha guardada como hash scrypt (salt:hash) — nunca em texto simples
   password   String
   role       String    @default("CLIENTE")
+  // FOTO DE PERFIL (data URL base64): administrador, motoboy ou cliente
+  photo      String?
   // perfil activo (o administrador pode desactivar trabalhadores)
   active     Boolean   @default(true)
   // banimento por má conduta (clientes)

@@ -20,7 +20,7 @@ export async function GET(
   }
 }
 
-// PATCH /api/customers/[id] - actualizar perfil / localização
+// PATCH /api/customers/[id] - actualizar perfil / localização / FOTO
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -28,12 +28,21 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await req.json()
-    const { name, email, address, latitude, longitude, locationSource, locationNote } = body
+    const { name, email, address, latitude, longitude, locationSource, locationNote, photo } = body
 
     const customer = await db.customer.findUnique({ where: { id } })
     if (!customer) {
       return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
     }
+
+    // FOTO DE PERFIL: data URL base64 (enviada pelo cliente no Perfil)
+    // ou null para remover — também propaga para o perfil de LOGIN (User)
+    const photoValue =
+      photo === undefined
+        ? customer.photo
+        : typeof photo === 'string' && photo.startsWith('data:image/')
+          ? photo
+          : null
 
     const updated = await db.customer.update({
       where: { id },
@@ -45,8 +54,17 @@ export async function PATCH(
         longitude: longitude ?? customer.longitude,
         locationSource: locationSource ?? customer.locationSource,
         locationNote: locationNote ?? customer.locationNote,
+        photo: photoValue,
       },
     })
+
+    // mantém a foto sincronizada no perfil de entrada (User) do cliente
+    if (photoValue !== customer.photo) {
+      await db.user
+        .updateMany({ where: { customerId: id }, data: { photo: photoValue } })
+        .catch(() => undefined)
+    }
+
     return NextResponse.json({ customer: updated })
   } catch (error) {
     console.error('[api/customers/[id]] erro:', error)

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const users = await db.user.findMany({
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       include: {
-        customer: { select: { id: true, name: true, phone: true, banned: true, _count: { select: { orders: true } } } },
+        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, _count: { select: { orders: true } } } },
         courier: { select: { id: true, name: true, vehicle: true, plate: true, available: true } },
       },
     })
@@ -56,6 +56,11 @@ export async function POST(req: NextRequest) {
     const role = String(body?.role ?? 'MOTOBOY').toUpperCase()
     const vehicle = String(body?.vehicle ?? '').trim()
     const plate = String(body?.plate ?? '').trim()
+    // FOTO DE PERFIL (data URL base64, já comprimida no dispositivo)
+    const photo =
+      typeof body?.photo === 'string' && body.photo.startsWith('data:image/')
+        ? body.photo
+        : null
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -108,9 +113,10 @@ export async function POST(req: NextRequest) {
         phone,
         password: hashPassword(password),
         role,
+        ...(photo ? { photo } : {}),
       },
       include: {
-        customer: { select: { id: true, name: true, phone: true, banned: true, _count: { select: { orders: true } } } },
+        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, _count: { select: { orders: true } } } },
         courier: { select: { id: true, name: true, vehicle: true, plate: true, available: true } },
       },
     })
@@ -124,7 +130,7 @@ export async function POST(req: NextRequest) {
     const userWithLinks = await db.user.findUnique({
       where: { id: user.id },
       include: {
-        customer: { select: { id: true, name: true, phone: true, banned: true, _count: { select: { orders: true } } } },
+        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, _count: { select: { orders: true } } } },
         courier: { select: { id: true, name: true, vehicle: true, plate: true, available: true } },
       },
     })

@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAppStore, formatDateTime } from '@/store/app-store'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { DropCrownIcon } from '@/components/app/Brand'
+import { Avatar } from '@/components/app/Avatar'
 import { updateCustomer } from '@/lib/api'
+import { resizeImageToDataUrl } from '@/lib/image'
 import { useToast } from '@/hooks/use-toast'
 import { useCustomerOrders, useStoreConfig } from '@/components/app/hooks'
 import { Button } from '@/components/ui/button'
@@ -16,6 +18,7 @@ import { Separator } from '@/components/ui/separator'
 import {
   Bike,
   Building2,
+  Camera,
   ChevronDown,
   Clock,
   CreditCard,
@@ -45,6 +48,8 @@ export function ProfileView() {
   const [location, setLocation] = useState<PickedLocation | null>(null)
   const [locSaving, setLocSaving] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [photoSaving, setPhotoSaving] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   if (!customer) return null
 
@@ -103,6 +108,26 @@ export function ProfileView() {
     }
   }
 
+  /** envia a FOTO DE PERFIL escolhida pelo cliente (comprime no dispositivo) */
+  async function uploadPhoto(file: File | undefined) {
+    if (!file || !customer) return
+    setPhotoSaving(true)
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 480, 0.85)
+      const { customer: updated } = await updateCustomer(customer.id, { photo: dataUrl })
+      setCustomer(updated)
+      toast({ title: 'Foto de perfil actualizada ✅' })
+    } catch (err) {
+      toast({
+        title: 'Foto não guardada',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setPhotoSaving(false)
+    }
+  }
+
   const locSourceBadge =
     customer.locationSource === 'exata'
       ? { label: 'local exacto (cadastro)', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' }
@@ -117,9 +142,37 @@ export function ProfileView() {
       {/* cartão de identidade */}
       <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl gota-gradient text-xl font-black text-white shadow-md">
-            {customer.name.charAt(0).toUpperCase()}
-          </span>
+          {/* avatar com botão de câmara — toca para trocar a foto */}
+          <div className="relative shrink-0">
+            <Avatar
+              photo={customer.photo ?? null}
+              name={customer.name}
+              className="h-16 w-16 text-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={photoSaving}
+              aria-label="Alterar a minha foto de perfil"
+              className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full btn-gold shadow-lg transition-all hover:brightness-110 active:scale-90 disabled:opacity-60"
+            >
+              {photoSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </button>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                uploadPhoto(e.target.files?.[0])
+                e.target.value = ''
+              }}
+            />
+          </div>
           <div className="min-w-0 flex-1">
             {editing ? (
               <div className="space-y-2">

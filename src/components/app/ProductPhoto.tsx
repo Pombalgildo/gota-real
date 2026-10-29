@@ -31,11 +31,12 @@ export function ProductPhoto({
           className
         )}
       >
-        {/* object-contain preserva a foto inteira sem cortes */}
+        {/* object-cover: a foto AUTOPOSICIONA-SE centrada e preenche
+            totalmente o quadradinho, sem sair dele nem deixar faixas */}
         <img
           src={product.image}
           alt={alt ?? `Foto real de ${product.name}`}
-          className={cn('h-full w-full object-contain', imgClassName)}
+          className={cn('h-full w-full object-cover object-center', imgClassName)}
           loading="lazy"
         />
       </div>

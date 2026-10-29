@@ -6,6 +6,7 @@ import { useAllOrders, useFeedback, useCouriers, useProducts, useUsers, useStore
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { OrderTimeline } from '@/components/app/OrderTimeline'
 import { ProductPhoto } from '@/components/app/ProductPhoto'
+import { Avatar, PhotoPicker } from '@/components/app/Avatar'
 import { resizeImageToDataUrl } from '@/lib/image'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import {
@@ -83,8 +84,14 @@ export function CentralView() {
       {/* cabeçalho */}
       <header className="gota-gradient px-4 pb-16 pt-5 text-white shadow-lg">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <div className="flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
+          <Avatar
+            photo={auth?.user.photo ?? null}
+            name={adminName}
+            className="h-11 w-11 rounded-2xl ring-2 ring-white/40"
+            icon={<Warehouse className="h-5 w-5" />}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
               painel operativo · {adminName}
             </p>
             <h1 className="text-lg font-black leading-tight">Central Gota REAL 👑</h1>
@@ -265,13 +272,13 @@ function CentralOrderCard({ order, onOpen }: { order: Order; onOpen: () => void 
     <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
       <button onClick={onOpen} className="w-full text-left" aria-label={`Detalhe do pedido nº ${order.number}`}>
         <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-sm font-black text-navy">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-black text-navy">
               #{order.number} · {order.customer?.name}
               {order.status === 'pendente' && <span className="live-dot ml-2 align-middle" />}
             </p>
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <Phone className="h-3 w-3" /> {order.customer?.phone} · {formatTime(order.requestedAt)}
+            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <Phone className="h-3 w-3 shrink-0" /> {order.customer?.phone} · {formatTime(order.requestedAt)}
             </p>
           </div>
           <StatusBadge status={order.status} />
@@ -367,7 +374,7 @@ function CentralOrderDetail({ order, onBack }: { order: Order; onBack: () => voi
 
       <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-2">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-base font-black text-navy">Pedido nº {order.number}</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {formatDateTime(order.requestedAt)} · {order.customer?.phone}
@@ -395,8 +402,8 @@ function CentralOrderDetail({ order, onBack }: { order: Order; onBack: () => voi
 
         {order.courier && (
           <div className="mt-2 flex items-center gap-2 rounded-xl bg-gold/15 p-2.5 text-xs">
-            <Bike className="h-4 w-4 text-gold" />
-            <p className="font-bold text-[#6B5410]">
+            <Bike className="h-4 w-4 shrink-0 text-gold" />
+            <p className="min-w-0 break-words font-bold text-[#6B5410]">
               {order.courier.name} · {order.courier.vehicle} · {order.courier.plate} · {order.courier.phone}
             </p>
           </div>
@@ -404,11 +411,11 @@ function CentralOrderDetail({ order, onBack }: { order: Order; onBack: () => voi
 
         <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
           {order.items.map((i) => (
-            <li key={i.id} className="flex items-center justify-between text-xs">
-              <span className="text-foreground">
+            <li key={i.id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 break-words text-foreground">
                 {i.quantity}× {i.productName}
               </span>
-              <b className="text-navy">{formatKz(i.unitPriceKz * i.quantity)}</b>
+              <b className="shrink-0 text-navy">{formatKz(i.unitPriceKz * i.quantity)}</b>
             </li>
           ))}
         </ul>
@@ -490,9 +497,9 @@ function FeedbackPanel() {
               >
                 {f.type === 'sugestao' ? '💡' : '⚠️'}
               </span>
-              <div>
-                <p className="text-sm font-black text-navy">{f.subject}</p>
-                <p className="text-[11px] text-muted-foreground">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-black text-navy">{f.subject}</p>
+                <p className="break-words text-[11px] text-muted-foreground">
                   {f.customer?.name ?? 'Anónimo'} · {f.customer?.phone ?? '—'} ·{' '}
                   {formatDateTime(f.createdAt)}
                 </p>
@@ -913,9 +920,9 @@ function UsersPanel() {
           <UserCog className="h-4.5 w-4.5 text-primary" /> Gestão de perfis
         </p>
         <p className="mt-1 text-xs leading-snug text-muted-foreground">
-          Crie perfis de <b>trabalhadores</b> (administradores e motoboys com senha própria),
+          Crie perfis de <b>trabalhadores</b> (administradores e motoboys com senha própria e foto),
           <b> elimine qualquer perfil</b> e <b>bane clientes por má conduta</b>.
-          Os banned ficam impedidos de fazer pedidos.
+          Os clientes banidos ficam impedidos de fazer pedidos.
         </p>
       </div>
 
@@ -1089,20 +1096,20 @@ function UserRow({
   return (
     <div className="rounded-2xl border border-border bg-white p-3.5 shadow-sm">
       <div className="flex items-center gap-3">
-        <span
-          className={cn(
-            'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md',
-            user.banned ? 'bg-red-500' : 'gota-gradient'
-          )}
-        >
-          {user.role === 'ADMIN' ? (
-            <Warehouse className="h-5 w-5" />
-          ) : user.role === 'MOTOBOY' ? (
-            <Bike className="h-5 w-5" />
-          ) : (
-            <User className="h-5 w-5" />
-          )}
-        </span>
+        <Avatar
+          photo={user.photo ?? user.customer?.photo ?? null}
+          name={user.name}
+          className={cn('h-11 w-11', user.banned && 'grayscale ring-2 ring-red-400')}
+          icon={
+            user.role === 'ADMIN' ? (
+              <Warehouse className="h-5 w-5" />
+            ) : user.role === 'MOTOBOY' ? (
+              <Bike className="h-5 w-5" />
+            ) : (
+              <User className="h-5 w-5" />
+            )
+          }
+        />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 truncate text-sm font-black text-navy">
             {user.name}
@@ -1226,6 +1233,7 @@ function CreateUserDialog({
   const [role, setRole] = useState<'ADMIN' | 'MOTOBOY'>('MOTOBOY')
   const [vehicle, setVehicle] = useState('')
   const [plate, setPlate] = useState('')
+  const [photo, setPhoto] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   async function save() {
@@ -1247,8 +1255,9 @@ function CreateUserDialog({
         role,
         vehicle: vehicle.trim(),
         plate: plate.trim(),
+        photo,
       })
-      setName(''); setEmail(''); setPhone(''); setPassword(''); setVehicle(''); setPlate('')
+      setName(''); setEmail(''); setPhone(''); setPassword(''); setVehicle(''); setPlate(''); setPhoto(null)
       onSaved()
       toast({
         title: `Perfil de ${role === 'ADMIN' ? 'administrador' : 'motoboy'} criado ✅`,
@@ -1275,6 +1284,15 @@ function CreateUserDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          {/* foto de perfil do trabalhador */}
+          <PhotoPicker
+            value={photo}
+            onChange={setPhoto}
+            name={name || 'T'}
+            label="Foto do trabalhador (opcional)"
+            hint="Aparece no painel dele e na lista de perfis. Comprime automaticamente."
+          />
+
           {/* tipo de perfil */}
           <div className="grid grid-cols-2 gap-2">
             {(['MOTOBOY', 'ADMIN'] as const).map((r) => (
@@ -1366,12 +1384,14 @@ function EditUserDialog({
   onSaved: () => void
 }) {
   const { toast } = useToast()
+  const { auth, setAuth } = useAppStore()
   const [name, setName] = useState(user.name)
   const [email, setEmail] = useState(user.email)
   const [phone, setPhone] = useState(user.phone ?? '')
   const [password, setPassword] = useState('')
   const [vehicle, setVehicle] = useState(user.courier?.vehicle ?? '')
   const [plate, setPlate] = useState(user.courier?.plate ?? '')
+  const [photo, setPhoto] = useState<string | null>(user.photo ?? user.customer?.photo ?? null)
   const [saving, setSaving] = useState(false)
 
   async function save() {
@@ -1381,13 +1401,19 @@ function EditUserDialog({
     }
     setSaving(true)
     try {
-      await apiUpdateUser(token, user.id, {
+      const { user: updated } = await apiUpdateUser(token, user.id, {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
         ...(password.trim() ? { password: password.trim() } : {}),
         ...(user.courier ? { vehicle: vehicle.trim(), plate: plate.trim() } : {}),
+        photo,
       })
+      // se o administrador editou o PRÓPRIO perfil, actualiza a sessão
+      // (o avatar do cabeçalho muda na hora)
+      if (auth && auth.user.id === user.id) {
+        setAuth({ token: auth.token, user: updated })
+      }
       onSaved()
       toast({
         title: 'Perfil actualizado ✅',
@@ -1416,6 +1442,14 @@ function EditUserDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          {/* foto de perfil — administrador, motoboy ou cliente */}
+          <PhotoPicker
+            value={photo}
+            onChange={setPhoto}
+            name={name || user.name}
+            label="Foto de perfil"
+            hint="Aparece no painel da pessoa e nas listas da Central."
+          />
           <div className="space-y-1.5">
             <Label htmlFor="eu-name">Nome</Label>
             <Input id="eu-name" value={name} onChange={(e) => setName(e.target.value)} />

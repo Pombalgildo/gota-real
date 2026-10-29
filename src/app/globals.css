@@ -116,6 +116,15 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* ===== Correcção de texto fora das caixas =====
+     Palavras longas (e-mails, coordenadas GPS, endereços, URLs)
+     nunca furam os cartões, diálogos, pills ou grelhas:
+     quebram dentro do próprio espaço disponível. */
+  p, li, h1, h2, h3, h4, h5, h6,
+  span, b, strong, em, small, label,
+  blockquote, td, th, dd, figcaption {
+    overflow-wrap: anywhere;
+  }
 }
 
 /* ============ Identidade Gota REAL ============ */

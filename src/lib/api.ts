@@ -58,6 +58,7 @@ export function createUser(
     role: 'ADMIN' | 'MOTOBOY'
     vehicle?: string
     plate?: string
+    photo?: string | null
   }
 ) {
   return request<{ user: User }>('/api/users', {
@@ -81,6 +82,7 @@ export function updateUser(
     banReason: string
     vehicle: string
     plate: string
+    photo: string | null
   }>
 ) {
   return request<{ user: User }>(`/api/users/${id}`, {
@@ -159,6 +161,7 @@ export function updateCustomer(
     longitude: number | null
     locationSource: string
     locationNote: string | null
+    photo: string | null
   }>
 ) {
   return request<{ customer: Customer }>(`/api/customers/${id}`, {

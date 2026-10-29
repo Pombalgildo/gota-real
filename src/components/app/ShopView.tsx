@@ -67,16 +67,16 @@ export function ShopView() {
               role="tab"
               aria-selected={active}
               onClick={() => setCategory(key)}
-              className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border-2 px-3 text-sm font-black transition-all duration-150 active:scale-[0.97] ${
+              className={`flex min-h-14 items-center justify-center gap-1.5 overflow-hidden rounded-2xl border-2 px-2 text-[13px] font-black transition-all duration-150 active:scale-[0.97] ${
                 active
                   ? 'border-primary bg-primary text-white shadow-md'
                   : 'border-border bg-white text-muted-foreground hover:border-primary/40 hover:text-foreground'
               }`}
             >
-              <Icon className="h-4.5 w-4.5" />
-              {label}
+              <Icon className="h-4.5 w-4.5 shrink-0" />
+              <span className="min-w-0 truncate">{label}</span>
               <span
-                className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
                   active ? 'bg-white/25 text-white' : 'bg-secondary text-primary'
                 }`}
               >

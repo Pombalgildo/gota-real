@@ -5,6 +5,7 @@ import { useAppStore, formatKz, formatDateTime } from '@/store/app-store'
 import { useCouriers, useAllOrders } from '@/components/app/hooks'
 import { MiniMap } from '@/components/app/MiniMap'
 import { PaymentBadge } from '@/components/app/Badges'
+import { Avatar } from '@/components/app/Avatar'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { orderAction, updateCourier } from '@/lib/api'
 import { emitCourierMove, getRealtimeSocket } from '@/lib/realtime-client'
@@ -107,7 +108,7 @@ function CourierSelect({
 }
 
 function MotoboyPanel({ courierName }: { courierName?: string }) {
-  const { courierId } = useAppStore()
+  const { courierId, auth } = useAppStore()
   const { couriers } = useCouriers()
   const { orders, loading } = useAllOrders()
   const { toast } = useToast()
@@ -125,11 +126,17 @@ function MotoboyPanel({ courierName }: { courierName?: string }) {
       {/* cabeçalho */}
       <header className="gota-gradient px-4 pb-16 pt-5 text-white shadow-lg">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
-          <div className="flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
+          <Avatar
+            photo={auth?.user.photo ?? null}
+            name={courierName ?? courier?.name ?? 'M'}
+            className="h-11 w-11 rounded-2xl ring-2 ring-white/40"
+            icon={<Bike className="h-5 w-5" />}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
               entregador · {courier?.vehicle} {courier?.plate}
             </p>
-            <h1 className="text-lg font-black leading-tight">{courierName ?? courier?.name ?? 'Motoboy'}</h1>
+            <h1 className="truncate text-lg font-black leading-tight">{courierName ?? courier?.name ?? 'Motoboy'}</h1>
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
             <span className="live-dot" /> ao vivo
@@ -180,11 +187,11 @@ function MotoboyPanel({ courierName }: { courierName?: string }) {
                 <h3 className="text-sm font-black text-navy">Concluídas hoje</h3>
                 <ul className="mt-2 space-y-1.5">
                   {deliveredToday.map((o) => (
-                    <li key={o.id} className="flex items-center justify-between text-xs">
-                      <span className="text-foreground">
+                    <li key={o.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="min-w-0 break-words text-foreground">
                         #{o.number} · {o.customer?.name} · {formatDateTime(o.deliveredAt)}
                       </span>
-                      <b className="text-emerald-600">{formatKz(o.totalKz)}</b>
+                      <b className="shrink-0 text-emerald-600">{formatKz(o.totalKz)}</b>
                     </li>
                   ))}
                 </ul>
@@ -331,15 +338,15 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
     <div className="space-y-3 rounded-2xl border border-border bg-white p-4 shadow-md">
       {/* topo */}
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-black text-navy">
+        <div className="min-w-0">
+          <p className="break-words text-sm font-black text-navy">
             #{order.number} · {order.customer?.name}
           </p>
           <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-            <Phone className="h-3 w-3" /> {order.customer?.phone}
+            <Phone className="h-3 w-3 shrink-0" /> {order.customer?.phone}
           </p>
           <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3" /> {order.address || 'localização GPS'}
+            <MapPin className="h-3 w-3 shrink-0" /> <span className="min-w-0 break-words">{order.address || 'localização GPS'}</span>
           </p>
         </div>
         <PaymentBadge method={order.paymentMethod} />

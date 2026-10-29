@@ -14,6 +14,7 @@ import { MotoboyView } from '@/components/app/MotoboyView'
 import { CheckoutSheet } from '@/components/app/CheckoutSheet'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { BrandLogo } from '@/components/app/Brand'
+import { Avatar } from '@/components/app/Avatar'
 import { getRealtimeSocket } from '@/lib/realtime-client'
 import { cn } from '@/lib/utils'
 import type { CustomerTab } from '@/store/app-store'
@@ -138,6 +139,14 @@ function CustomerApp() {
               Gota <span className="font-sans text-xs font-black tracking-[0.28em]">REAL</span>
             </p>
           </div>
+          {/* foto de perfil do cliente (aparece depois de a enviar no Perfil) */}
+          {customer?.photo && (
+            <Avatar
+              photo={customer.photo}
+              name={firstName}
+              className="h-10 w-10 rounded-2xl ring-2 ring-white/40"
+            />
+          )}
           <button
             onClick={() => setCheckoutOpen(true)}
             className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 transition-all hover:bg-white/25 active:scale-95"

@@ -34,6 +34,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.name != null) data.name = String(body.name).trim()
     if (body.email != null) data.email = String(body.email).trim().toLowerCase()
     if (body.phone != null) data.phone = String(body.phone).trim()
+    // FOTO DE PERFIL: data URL base64 ou null para remover
+    if (body.photo !== undefined) {
+      const p = body.photo
+      data.photo = typeof p === 'string' && p.startsWith('data:image/') ? p : null
+    }
     if (body.password) {
       if (String(body.password).length < 4) {
         return NextResponse.json(
@@ -115,7 +120,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { id },
       data,
       include: {
-        customer: { select: { id: true, name: true, phone: true, banned: true, _count: { select: { orders: true } } } },
+        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, _count: { select: { orders: true } } } },
         courier: { select: { id: true, name: true, vehicle: true, plate: true, available: true } },
       },
     })
@@ -131,6 +136,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           name: true,
           phone: true,
           banned: true,
+          photo: true,
           _count: { select: { orders: true } },
         },
       })
@@ -143,6 +149,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     await emitRealtime('users:update', { user: { ...updated, password: undefined } })
+
+    // se a FOTO de um perfil de CLIENTE mudou, propaga para o registo
+    // do cliente (usado na app do cliente e na listagem da Central)
+    if (user.customerId && data.photo !== undefined) {
+      await db.customer
+        .update({ where: { id: user.customerId }, data: { photo: data.photo as string | null } })
+        .catch(() => undefined)
+    }
 
     return NextResponse.json({ user: { ...updated, password: undefined }, customer })
   } catch (error) {

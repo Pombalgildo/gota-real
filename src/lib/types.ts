@@ -16,6 +16,8 @@ export interface User {
   phone: string
   role: UserRole | string
   active: boolean
+  // foto de perfil (data URL base64)
+  photo?: string | null
   banned: boolean
   banReason?: string | null
   customerId?: string | null
@@ -27,6 +29,7 @@ export interface User {
     name: string
     phone: string
     banned: boolean
+    photo?: string | null
     _count?: { orders: number }
   } | null
   courier?: {
@@ -63,6 +66,8 @@ export interface Customer {
   longitude?: number | null
   locationSource: 'exata' | 'auto' | 'atualizada' | string
   locationNote?: string | null
+  // foto de perfil (data URL base64)
+  photo?: string | null
   banned?: boolean
   banReason?: string | null
   createdAt: string
