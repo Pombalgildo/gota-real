@@ -64,3 +64,6 @@ mini-services/**/node_modules/
 # capturas de ecrã e análises de teste
 scripts/*.png
 scripts/vlm-*.json
+
+# infra-estrutura do sandbox (não faz parte da app)
+Caddyfile
