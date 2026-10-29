@@ -156,13 +156,14 @@ export function CheckoutSheet() {
                 <div key={product.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-2.5 shadow-sm">
                   <ProductPhoto product={product} className="h-16 w-16 shrink-0" rounded="rounded-xl" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-navy">{product.name}</p>
-                    <p className="text-xs text-muted-foreground">
+                    {/* o nome quebra em até 2 linhas — nunca fica cortado a meio */}
+                    <p className="line-clamp-2 text-sm font-bold leading-snug text-navy">{product.name}</p>
+                    <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
                       {formatKz(product.priceKz)} × {quantity} ={' '}
                       <b className="text-foreground">{formatKz(product.priceKz * quantity)}</b>
                     </p>
                   </div>
-                  <div className="flex flex-col items-end gap-1.5">
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
                     <QuantityStepper
                       size="sm"
                       value={quantity}

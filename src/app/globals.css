@@ -118,12 +118,16 @@
   }
   /* ===== Correcção de texto fora das caixas =====
      Palavras longas (e-mails, coordenadas GPS, endereços, URLs)
-     nunca furam os cartões, diálogos, pills ou grelhas:
-     quebram dentro do próprio espaço disponível. */
+     nunca furam os cartões, diálogos, pills ou grelhas.
+
+     IMPORTANTE: usar break-word e NÃO «anywhere» — o valor
+     «anywhere» reduz a largura mínima do texto a 1 caracter,
+     e o flexbox passa a esmagar textos ao lado de botões
+     (preços a sair na vertical, textos colapsados). */
   p, li, h1, h2, h3, h4, h5, h6,
   span, b, strong, em, small, label,
   blockquote, td, th, dd, figcaption {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
 }
 

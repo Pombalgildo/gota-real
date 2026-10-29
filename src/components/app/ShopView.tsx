@@ -53,7 +53,7 @@ export function ShopView() {
         </div>
       </header>
 
-      {/* ---------- PILLS DE CATEGORIA (grandes) ---------- */}
+      {/* ---------- PILLS DE CATEGORIA (grandes, sem texto cortado) ---------- */}
       <div role="tablist" aria-label="Categorias da loja" className="grid grid-cols-3 gap-2.5">
         {CATS.map(({ key, label, icon: Icon }) => {
           const active = category === key
@@ -67,20 +67,16 @@ export function ShopView() {
               role="tab"
               aria-selected={active}
               onClick={() => setCategory(key)}
-              className={`flex min-h-14 items-center justify-center gap-1.5 overflow-hidden rounded-2xl border-2 px-2 text-[13px] font-black transition-all duration-150 active:scale-[0.97] ${
+              className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 px-1.5 py-2.5 transition-all duration-150 active:scale-[0.97] ${
                 active
                   ? 'border-primary bg-primary text-white shadow-md'
                   : 'border-border bg-white text-muted-foreground hover:border-primary/40 hover:text-foreground'
               }`}
             >
-              <Icon className="h-4.5 w-4.5 shrink-0" />
-              <span className="min-w-0 truncate">{label}</span>
-              <span
-                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
-                  active ? 'bg-white/25 text-white' : 'bg-secondary text-primary'
-                }`}
-              >
-                {count}
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="flex max-w-full items-baseline justify-center gap-1 text-xs font-black leading-none">
+                <span className="min-w-0">{label}</span>
+                <span className={active ? 'text-white/70' : 'text-muted-foreground/70'}>{count}</span>
               </span>
             </button>
           )
@@ -91,16 +87,16 @@ export function ShopView() {
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
         {loading
           ? Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="space-y-2.5 rounded-3xl border-2 border-border bg-white p-4">
+              <div key={i} className="space-y-2.5 rounded-3xl border-2 border-border bg-white p-3.5">
                 <div className="flex gap-3.5">
-                  <div className="h-28 w-28 animate-pulse rounded-2xl bg-muted" />
+                  <div className="h-24 w-24 shrink-0 animate-pulse rounded-2xl bg-muted" />
                   <div className="flex-1 space-y-2 py-1">
                     <div className="h-4 w-4/5 animate-pulse rounded bg-muted" />
                     <div className="h-3 w-3/5 animate-pulse rounded bg-muted" />
                     <div className="h-3 w-2/5 animate-pulse rounded bg-muted" />
-                    <div className="h-9 w-28 animate-pulse rounded-xl bg-muted" />
                   </div>
                 </div>
+                <div className="h-11 w-full animate-pulse rounded-2xl bg-muted" />
               </div>
             ))
           : filtered.map((p) => <ShopCard key={p.id} product={p} />)}
@@ -151,17 +147,19 @@ export function ShopView() {
 
 /* ============================================================
    CARTÃO DE PRODUTO — GRANDE, COM BOTÃO ADICIONAR MAIOR
+   Preço em linha própria + botão ADICIONAR em largura total:
+   nada se sobrepõe nem sai do cartão, mesmo em ecrãs estreitos.
    ============================================================ */
 function ShopCard({ product }: { product: Product }) {
   const { cart, addToCart, setCartQuantity } = useAppStore()
   const inCart = cart.find((i) => i.product.id === product.id)
 
   return (
-    <div className="flex gap-4 rounded-3xl border-2 border-border bg-white p-4 shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-md">
-      <ProductPhoto product={product} className="h-28 w-28 shrink-0" rounded="rounded-2xl" />
+    <div className="flex gap-3.5 rounded-3xl border-2 border-border bg-white p-3.5 shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-md">
+      <ProductPhoto product={product} className="h-24 w-24 shrink-0 sm:h-28 sm:w-28" rounded="rounded-2xl" />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-base font-black leading-tight text-navy">{product.name}</h3>
+          <h3 className="min-w-0 flex-1 text-base font-black leading-tight text-navy">{product.name}</h3>
           {product.volumeL > 0 && (
             <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-black text-secondary-foreground">
               {formatLiters(product.volumeL)}
@@ -171,36 +169,39 @@ function ShopCard({ product }: { product: Product }) {
         <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">
           {product.description}
         </p>
-        <div className="mt-auto flex items-end justify-between gap-2 pt-2.5">
-          <div>
-            <p className="text-lg font-black leading-none text-primary">
-              {formatKz(product.priceKz)}
-            </p>
-            <p className="mt-1 text-[10px] font-semibold text-muted-foreground">
-              por {product.unitLabel}
-              {product.stock <= 10 && (
-                <span className="ml-1 font-black text-amber-600">· últimos {product.stock}!</span>
-              )}
-            </p>
-          </div>
-          {inCart ? (
+        <div className="mt-auto pt-2.5">
+          <p className="text-lg font-black leading-none text-primary">
+            {formatKz(product.priceKz)}
+          </p>
+          <p className="mt-1 text-[10px] font-semibold leading-snug text-muted-foreground">
+            por {product.unitLabel}
+            {product.stock <= 10 && product.stock > 0 && (
+              <span className="font-black text-amber-600"> · últimos {product.stock}!</span>
+            )}
+          </p>
+        </div>
+        {inCart ? (
+          <div className="mt-2.5 flex items-center justify-between gap-2 rounded-2xl bg-secondary/70 px-2 py-1">
+            <span className="min-w-0 pl-1 text-[11px] font-bold leading-tight text-secondary-foreground">
+              no meu pedido
+            </span>
             <QuantityStepper
-              size="lg"
+              size="sm"
               value={inCart.quantity}
               max={product.stock}
               onChange={(v) => setCartQuantity(product.id, v)}
             />
-          ) : (
-            <button
-              disabled={product.stock <= 0}
-              onClick={() => addToCart(product)}
-              className="flex h-11 items-center gap-1.5 rounded-2xl bg-primary px-4 text-sm font-black text-white shadow-md transition-all duration-150 hover:bg-primary/90 active:scale-95 disabled:opacity-40"
-            >
-              <Plus className="h-5 w-5" />
-              ADICIONAR
-            </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <button
+            disabled={product.stock <= 0}
+            onClick={() => addToCart(product)}
+            className="mt-2.5 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl bg-primary px-4 text-sm font-black text-white shadow-md transition-all duration-150 hover:bg-primary/90 active:scale-[0.98] disabled:opacity-40"
+          >
+            <Plus className="h-5 w-5 shrink-0" />
+            {product.stock <= 0 ? 'ESGOTADO' : 'ADICIONAR'}
+          </button>
+        )}
       </div>
     </div>
   )
