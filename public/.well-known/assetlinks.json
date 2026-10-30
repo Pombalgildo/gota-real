@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ao.gotareal.app",
+      "sha256_cert_fingerprints": ["CF8792266C5637D73EF634507D0E4F3C37B87684C37BE4C4F6A8FF7EFE83CDAB"]
+    }
+  }
+]
