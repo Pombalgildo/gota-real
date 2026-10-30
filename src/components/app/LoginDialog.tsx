@@ -54,9 +54,10 @@ export function LoginDialog({
       setAuth({ token: res.token, user: res.user })
 
       // encaminha conforme o perfil que entrou
-      if (res.user.role === 'ADMIN') {
+      const role = res.user.role
+      if (role === 'ADMIN' || role === 'ATENDENTE' || role === 'EDITOR') {
         setMode('central')
-      } else if (res.user.role === 'MOTOBOY') {
+      } else if (role === 'MOTOBOY' || role === 'MOTORISTA') {
         setMode('motoboy')
         if (res.courier) setCourierId(res.courier.id)
       } else {
@@ -68,11 +69,17 @@ export function LoginDialog({
       toast({
         title: `Olá, ${res.user.name.split(' ')[0]}! 👑`,
         description:
-          res.user.role === 'ADMIN'
+          role === 'ADMIN'
             ? 'Painel do administrador aberto.'
-            : res.user.role === 'MOTOBOY'
-              ? 'Painel do motoboy aberto — aguarde as entregas.'
-              : 'Bem-vindo(a) de volta à loja Gota REAL.',
+            : role === 'ATENDENTE'
+              ? 'Painel da atendente aberto — receba e gere os pedidos.'
+              : role === 'EDITOR'
+                ? 'Painel do editor aberto — gira a loja.'
+                : role === 'MOTOBOY'
+                  ? 'Painel do motoboy aberto — aguarde as entregas.'
+                  : role === 'MOTORISTA'
+                    ? 'Painel do motorista aberto — aguarde as entregas.'
+                    : 'Bem-vindo(a) de volta à loja Gota REAL.',
       })
     } catch (err) {
       toast({

@@ -30,7 +30,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Order, Product, User as UserDTO } from '@/lib/types'
-import { ROLE_LABEL } from '@/lib/types'
+import { ROLE_LABEL, ROLE_DESCRIPTION, WORKER_ROLES, ORDER_MANAGER_ROLES, CATALOG_ROLES } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
   ArrowLeft,
@@ -38,9 +38,11 @@ import {
   Bike,
   Building2,
   Camera,
+  Car,
   Check,
   ClipboardList,
   Clock,
+  Headset,
   ImagePlus,
   KeyRound,
   Loader2,
@@ -48,6 +50,7 @@ import {
   MessageSquareWarning,
   Package,
   Pencil,
+  PenLine,
   Phone,
   Plus,
   Reply,
@@ -77,7 +80,9 @@ const FILTERS = [
 
 export function CentralView() {
   const { auth } = useAppStore()
-  const adminName = auth?.user.name ?? 'Administrador'
+  const staffName = auth?.user.name ?? 'Equipa'
+  const role = auth?.user.role ?? 'ADMIN'
+  const isEditor = role === 'EDITOR'
 
   return (
     <div className="min-h-dvh bg-background pb-24">
@@ -86,13 +91,21 @@ export function CentralView() {
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <Avatar
             photo={auth?.user.photo ?? null}
-            name={adminName}
+            name={staffName}
             className="h-11 w-11 rounded-2xl ring-2 ring-white/40"
-            icon={<Warehouse className="h-5 w-5" />}
+            icon={
+              isEditor ? (
+                <Store className="h-5 w-5" />
+              ) : role === 'ATENDENTE' ? (
+                <Headset className="h-5 w-5" />
+              ) : (
+                <Warehouse className="h-5 w-5" />
+              )
+            }
           />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
-              painel operativo · {adminName}
+              {ROLE_LABEL[role] ?? 'equipa'} · {staffName}
             </p>
             <h1 className="text-lg font-black leading-tight">Central Gota REAL 👑</h1>
           </div>
@@ -104,15 +117,16 @@ export function CentralView() {
       </header>
 
       <div className="mx-auto -mt-11 max-w-5xl space-y-5 px-4">
-        <CentralStats />
-        <CentralTabs />
+        <CentralStats role={role} />
+        <CentralTabs role={role} />
       </div>
     </div>
   )
 }
 
-function CentralStats() {
+function CentralStats({ role }: { role: string }) {
   const { orders } = useAllOrders()
+  const { products } = useProducts()
   const today = new Date().toDateString()
 
   const stats = useMemo(() => {
@@ -130,49 +144,72 @@ function CentralStats() {
     return { todayCount: todayOrders.length, pending: pending.length, inTransit: inTransit.length, deliveredToday: deliveredToday.length, revenueToday, avgMin }
   }, [orders, today])
 
-  const items = [
-    { icon: ClipboardList, label: 'pedidos hoje', value: stats.todayCount, accent: 'text-primary bg-secondary' },
-    { icon: Timer, label: 'solicitados', value: stats.pending, accent: 'text-amber-600 bg-amber-100' },
-    { icon: Truck, label: 'em trânsito', value: stats.inTransit, accent: 'text-blue-600 bg-blue-100' },
-    { icon: Check, label: 'entregues hoje', value: stats.deliveredToday, accent: 'text-emerald-600 bg-emerald-100' },
-    { icon: TrendingUp, label: 'faturação hoje', value: formatKz(stats.revenueToday), accent: 'text-gold bg-gold/15' },
-    { icon: Bike, label: 'tempo médio', value: stats.avgMin != null ? `${stats.avgMin} min` : '—', accent: 'text-navy bg-secondary' },
-  ]
+  // O EDITOR só gere a loja — vê estatísticas do catálogo em vez dos pedidos
+  const items =
+    role === 'EDITOR'
+      ? [
+          { icon: Package, label: 'artigos na loja', value: products.length, accent: 'text-primary bg-secondary' },
+          { icon: Check, label: 'activos à venda', value: products.filter((p) => p.active).length, accent: 'text-emerald-600 bg-emerald-100' },
+          { icon: XCircle, label: 'sem foto', value: products.filter((p) => !p.image).length, accent: 'text-amber-600 bg-amber-100' },
+          { icon: TrendingUp, label: 'preço médio', value: products.length ? formatKz(Math.round(products.reduce((s, p) => s + p.priceKz, 0) / products.length)) : '—', accent: 'text-gold bg-gold/15' },
+        ]
+      : [
+          { icon: ClipboardList, label: 'pedidos hoje', value: stats.todayCount, accent: 'text-primary bg-secondary' },
+          { icon: Timer, label: 'solicitados', value: stats.pending, accent: 'text-amber-600 bg-amber-100' },
+          { icon: Truck, label: 'em trânsito', value: stats.inTransit, accent: 'text-blue-600 bg-blue-100' },
+          { icon: Check, label: 'entregues hoje', value: stats.deliveredToday, accent: 'text-emerald-600 bg-emerald-100' },
+          { icon: TrendingUp, label: 'faturação hoje', value: formatKz(stats.revenueToday), accent: 'text-gold bg-gold/15' },
+          { icon: Bike, label: 'tempo médio', value: stats.avgMin != null ? `${stats.avgMin} min` : '—', accent: 'text-navy bg-secondary' },
+        ]
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+    <div className={cn('grid grid-cols-2 gap-2.5', role === 'EDITOR' ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
       {items.map(({ icon: Icon, label, value, accent }) => (
         <div key={label} className="rounded-2xl border border-border bg-white p-3 shadow-md">
           <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', accent)}>
             <Icon className="h-4 w-4" />
           </span>
           <p className="mt-2 truncate text-lg font-black leading-none text-navy">{value}</p>
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
         </div>
       ))}
     </div>
   )
 }
 
-function CentralTabs() {
+function CentralTabs({ role }: { role: string }) {
+  // abas conforme o perfil: só o ADMIN vê Perfis e Ajustes
+  const canManageOrders = ORDER_MANAGER_ROLES.includes(role)
+  const canManageCatalog = CATALOG_ROLES.includes(role)
+  const isAdmin = role === 'ADMIN'
+  const tabs = [
+    ...(canManageOrders ? [{ value: 'pedidos', label: 'Pedidos', icon: ClipboardList }] : []),
+    ...(canManageOrders ? [{ value: 'feedback', label: 'Mensagens', icon: MessageSquareWarning }] : []),
+    ...(canManageCatalog ? [{ value: 'produtos', label: 'Loja', icon: Store }] : []),
+    ...(isAdmin ? [{ value: 'perfis', label: 'Perfis', icon: Users }] : []),
+    ...(isAdmin ? [{ value: 'ajustes', label: 'Ajustes', icon: Building2 }] : []),
+  ]
+  const defaultTab = tabs[0]?.value ?? 'pedidos'
+
   return (
-    <Tabs defaultValue="pedidos">
-      <TabsList className="grid w-full grid-cols-5 rounded-xl bg-secondary p-1">
-        <TabsTrigger value="pedidos" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
-          <ClipboardList className="mr-0.5 h-3.5 w-3.5" /> Pedidos
-        </TabsTrigger>
-        <TabsTrigger value="feedback" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
-          <MessageSquareWarning className="mr-0.5 h-3.5 w-3.5" /> Mensagens
-        </TabsTrigger>
-        <TabsTrigger value="produtos" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
-          <Store className="mr-0.5 h-3.5 w-3.5" /> Loja
-        </TabsTrigger>
-        <TabsTrigger value="perfis" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
-          <Users className="mr-0.5 h-3.5 w-3.5" /> Perfis
-        </TabsTrigger>
-        <TabsTrigger value="ajustes" className="rounded-lg px-1 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs">
-          <Building2 className="mr-0.5 h-3.5 w-3.5" /> Ajustes
-        </TabsTrigger>
+    <Tabs defaultValue={defaultTab}>
+      <TabsList
+        className={cn(
+          'grid w-full rounded-xl bg-secondary p-1',
+          tabs.length === 1 && 'grid-cols-1',
+          tabs.length === 2 && 'grid-cols-2',
+          tabs.length >= 3 && 'grid-cols-3 sm:grid-cols-5'
+        )}
+      >
+        {tabs.map((t) => (
+          <TabsTrigger
+            key={t.value}
+            value={t.value}
+            className="rounded-lg px-1 text-[10px] font-bold data-[state=active]:bg-white sm:text-xs"
+          >
+            <t.icon className="mr-0.5 h-3.5 w-3.5 shrink-0" /> {t.label}
+          </TabsTrigger>
+        ))}
       </TabsList>
 
       <TabsContent value="pedidos" className="mt-4">
@@ -244,13 +281,14 @@ function OrdersPanel() {
 function CentralOrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
   const { couriers } = useCouriers()
   const { toast } = useToast()
+  const { auth } = useAppStore()
   const [busy, setBusy] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
 
   async function act(action: 'confirm' | 'assign' | 'cancel', courierId?: string) {
     setBusy(true)
     try {
-      await orderAction(order.id, action, courierId)
+      await orderAction(auth?.token ?? '', order.id, action, courierId)
       if (action === 'confirm') toast({ title: `Pedido nº ${order.number} confirmado ✅` })
       if (action === 'assign') toast({ title: `Motoboy atribuído ao pedido nº ${order.number} 🛵` })
       if (action === 'cancel') toast({ title: `Pedido nº ${order.number} cancelado`, variant: 'destructive' })
@@ -450,6 +488,7 @@ function CentralOrderDetail({ order, onBack }: { order: Order; onBack: () => voi
 function FeedbackPanel() {
   const { feedbacks, loading } = useFeedback()
   const { toast } = useToast()
+  const { auth } = useAppStore()
   const [replyTo, setReplyTo] = useState<string | null>(null)
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
@@ -457,7 +496,7 @@ function FeedbackPanel() {
   async function send(fbid: string) {
     setSending(true)
     try {
-      await respondFeedback(fbid, reply.trim())
+      await respondFeedback(auth?.token ?? '', fbid, reply.trim())
       setReplyTo(null)
       setReply('')
       toast({ title: 'Resposta enviada ao cliente ✅' })
@@ -563,8 +602,10 @@ function FeedbackPanel() {
 function ProductsPanel() {
   const { products, reload } = useProducts()
   const { toast } = useToast()
+  const { auth } = useAppStore()
   const [addOpen, setAddOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
+  const token = auth?.token ?? ''
 
   const withPhoto = products.filter((p) => p.image).length
 
@@ -607,7 +648,7 @@ function ProductsPanel() {
           <Switch
             checked={p.active}
             onCheckedChange={async (v) => {
-              await updateProduct(p.id, { active: v })
+              await updateProduct(token, p.id, { active: v })
               reload()
             }}
             aria-label={`Activar/desactivar ${p.name}`}
@@ -652,6 +693,8 @@ function ProductFormDialog({
   onSaved: () => void
 }) {
   const { toast } = useToast()
+  const { auth } = useAppStore()
+  const token = auth?.token ?? ''
   const [name, setName] = useState(product?.name ?? '')
   const [price, setPrice] = useState(String(product?.priceKz ?? ''))
   const [stock, setStock] = useState(String(product?.stock ?? '50'))
@@ -706,10 +749,10 @@ function ProductFormDialog({
         image, // null remove a foto, data URL guarda a foto real
       }
       if (product) {
-        await updateProduct(product.id, body)
+        await updateProduct(token, product.id, body)
         toast({ title: 'Produto actualizado ✅', description: 'A loja do cliente já mostra as alterações.' })
       } else {
-        await createProduct(body)
+        await createProduct(token, body)
         toast({ title: 'Produto criado e à venda! ✅', description: 'Já está visível na loja do cliente.' })
       }
       onSaved()
@@ -891,7 +934,7 @@ function UsersPanel() {
   const [banning, setBanning] = useState<UserDTO | null>(null)
   const [deleting, setDeleting] = useState<UserDTO | null>(null)
 
-  const workers = users.filter((u) => u.role === 'ADMIN' || u.role === 'MOTOBOY')
+  const workers = users.filter((u) => (WORKER_ROLES as string[]).includes(u.role))
   const clients = users.filter((u) => u.role === 'CLIENTE')
 
   async function act(promise: Promise<unknown>, okMessage: string) {
@@ -920,9 +963,9 @@ function UsersPanel() {
           <UserCog className="h-4.5 w-4.5 text-primary" /> Gestão de perfis
         </p>
         <p className="mt-1 text-xs leading-snug text-muted-foreground">
-          Crie perfis de <b>trabalhadores</b> (administradores e motoboys com senha própria e foto),
-          <b> elimine qualquer perfil</b> e <b>bane clientes por má conduta</b>.
-          Os clientes banidos ficam impedidos de fazer pedidos.
+          Crie perfis de <b>trabalhadores</b> — administradores, atendentes (pedidos), editores (loja),
+          motoboys e motoristas — com senha própria e foto, <b>elimine qualquer perfil</b> e
+          <b> bane clientes por má conduta</b>. Os clientes banidos ficam impedidos de fazer pedidos.
         </p>
       </div>
 
@@ -1089,9 +1132,15 @@ function UserRow({
   const roleBadge =
     user.role === 'ADMIN'
       ? 'border-gold/50 bg-gold/15 text-[#6B5410]'
-      : user.role === 'MOTOBOY'
-        ? 'border-sky-200 bg-sky-50 text-sky-700'
-        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      : user.role === 'ATENDENTE'
+        ? 'border-violet-200 bg-violet-50 text-violet-700'
+        : user.role === 'EDITOR'
+          ? 'border-orange-200 bg-orange-50 text-orange-700'
+          : user.role === 'MOTORISTA'
+            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+            : user.role === 'MOTOBOY'
+              ? 'border-sky-200 bg-sky-50 text-sky-700'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
 
   return (
     <div className="rounded-2xl border border-border bg-white p-3.5 shadow-sm">
@@ -1103,6 +1152,12 @@ function UserRow({
           icon={
             user.role === 'ADMIN' ? (
               <Warehouse className="h-5 w-5" />
+            ) : user.role === 'ATENDENTE' ? (
+              <Headset className="h-5 w-5" />
+            ) : user.role === 'EDITOR' ? (
+              <PenLine className="h-5 w-5" />
+            ) : user.role === 'MOTORISTA' ? (
+              <Car className="h-5 w-5" />
             ) : user.role === 'MOTOBOY' ? (
               <Bike className="h-5 w-5" />
             ) : (
@@ -1213,7 +1268,7 @@ function UserRow({
   )
 }
 
-/** Dialog: criar perfil de trabalhador (administrador ou motoboy). */
+/** Dialog: criar perfil de trabalhador (admin, atendente, editor, motoboy ou motorista). */
 function CreateUserDialog({
   open,
   onOpenChange,
@@ -1230,11 +1285,20 @@ function CreateUserDialog({
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'ADMIN' | 'MOTOBOY'>('MOTOBOY')
+  const [role, setRole] = useState<'ADMIN' | 'ATENDENTE' | 'EDITOR' | 'MOTOBOY' | 'MOTORISTA'>('MOTOBOY')
   const [vehicle, setVehicle] = useState('')
   const [plate, setPlate] = useState('')
   const [photo, setPhoto] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const ROLE_ICONS: Record<string, typeof Bike> = {
+    ADMIN: Warehouse,
+    ATENDENTE: Headset,
+    EDITOR: PenLine,
+    MOTOBOY: Bike,
+    MOTORISTA: Car,
+  }
+  const isDelivery = role === 'MOTOBOY' || role === 'MOTORISTA'
 
   async function save() {
     if (!name.trim() || !email.trim() || password.length < 4) {
@@ -1260,7 +1324,7 @@ function CreateUserDialog({
       setName(''); setEmail(''); setPhone(''); setPassword(''); setVehicle(''); setPlate(''); setPhoto(null)
       onSaved()
       toast({
-        title: `Perfil de ${role === 'ADMIN' ? 'administrador' : 'motoboy'} criado ✅`,
+        title: `Perfil de ${(ROLE_LABEL[role] ?? role).toLowerCase()} criado ✅`,
         description: `${email.trim()} já pode entrar com a senha definida.`,
       })
     } catch (err) {
@@ -1295,28 +1359,23 @@ function CreateUserDialog({
 
           {/* tipo de perfil */}
           <div className="grid grid-cols-2 gap-2">
-            {(['MOTOBOY', 'ADMIN'] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={`rounded-xl border-2 p-3 text-center transition-all ${
-                  role === r ? 'border-primary bg-secondary/60 shadow-sm' : 'border-border bg-white hover:border-input'
-                }`}
-              >
-                {r === 'MOTOBOY' ? (
-                  <Bike className="mx-auto h-6 w-6 text-primary" />
-                ) : (
-                  <Warehouse className="mx-auto h-6 w-6 text-primary" />
-                )}
-                <p className="mt-1 text-xs font-black text-navy">
-                  {r === 'MOTOBOY' ? 'MOTOBOY' : 'ADMINISTRADOR'}
-                </p>
-                <p className="text-[10px] leading-tight text-muted-foreground">
-                  {r === 'MOTOBOY' ? 'faz entregas com GPS' : 'geride tudo como você'}
-                </p>
-              </button>
-            ))}
+            {(['MOTOBOY', 'MOTORISTA', 'ATENDENTE', 'EDITOR', 'ADMIN'] as const).map((r) => {
+              const Icon = ROLE_ICONS[r]
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRole(r)}
+                  className={`rounded-xl border-2 p-3 text-center transition-all ${
+                    role === r ? 'border-primary bg-secondary/60 shadow-sm' : 'border-border bg-white hover:border-input'
+                  } ${r === 'ADMIN' ? 'col-span-2' : ''}`}
+                >
+                  <Icon className="mx-auto h-6 w-6 text-primary" />
+                  <p className="mt-1 text-xs font-black text-navy">{ROLE_LABEL[r]}</p>
+                  <p className="text-[10px] leading-tight text-muted-foreground">{ROLE_DESCRIPTION[r]}</p>
+                </button>
+              )
+            })}
           </div>
 
           <div className="space-y-1.5">
@@ -1347,11 +1406,16 @@ function CreateUserDialog({
             </p>
           </div>
 
-          {role === 'MOTOBOY' && (
+          {isDelivery && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
                 <Label htmlFor="nu-vehicle">Veículo</Label>
-                <Input id="nu-vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="Mota" />
+                <Input
+                  id="nu-vehicle"
+                  value={vehicle}
+                  onChange={(e) => setVehicle(e.target.value)}
+                  placeholder={role === 'MOTORISTA' ? 'Carro ligeiro' : 'Mota'}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="nu-plate">Matrícula</Label>
@@ -1665,7 +1729,7 @@ function StoreSettingsPanel() {
         </p>
         <p className="mt-1 text-xs leading-snug text-muted-foreground">
           Preencha os dados que os clientes vêem na app (perfil e informações de contacto).
-          Qualquer perfil de trabalhador que criar também pode editar estes dados.
+          Os Ajustes são exclusivos do administrador — os restantes perfis da equipa não têm acesso.
         </p>
       </div>
 

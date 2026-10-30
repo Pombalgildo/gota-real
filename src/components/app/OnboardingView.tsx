@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { BrandLogo, BrandWordmark, DropCrownIcon } from '@/components/app/Brand'
+import { BrandLogo, BrandWordmark } from '@/components/app/Brand'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { LoginDialog } from '@/components/app/LoginDialog'
 import { Button } from '@/components/ui/button'
@@ -98,14 +98,11 @@ export function OnboardingView() {
       {/* decorações */}
       <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-[#37b6f5]/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-[#d9a62e]/15 blur-3xl" />
-      <div className="pointer-events-none absolute top-1/3 left-8 opacity-30 animate-gota-float">
-        <DropCrownIcon size={54} />
-      </div>
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8">
-        {/* topo com logo */}
+        {/* topo com logo (fundo branco, texto centrado por baixo) */}
         <div className="flex flex-col items-center pt-6">
-          <BrandLogo size={92} className="ring-4 ring-white/50" />
+          <BrandLogo size={92} className="ring-4 ring-white/60" />
           <BrandWordmark light size="md" className="mt-5" />
         </div>
 
@@ -114,7 +111,7 @@ export function OnboardingView() {
           {step === 'boas-vindas' && (
             <div className="space-y-5">
               <div className="glass-card rounded-2xl p-6 text-white">
-                <h1 className="text-2xl font-black leading-snug">
+                <h1 className="text-[21px] font-black leading-snug sm:text-2xl">
                   Água purificada entregue onde estiver. 👑
                 </h1>
                 <p className="mt-2.5 text-sm leading-relaxed text-[#cfe7f8]">

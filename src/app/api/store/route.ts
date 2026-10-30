@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ensureSeed } from '@/lib/seed'
-import { requireStaff } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { emitRealtime } from '@/lib/realtime-emitter'
 
 /** GET /api/store — dados públicos da loja (todos os perfis). */
@@ -26,15 +26,15 @@ export async function GET() {
 }
 
 /**
- * PATCH /api/store — o administrador (ou perfil criado por ele) preenche
- * os dados da loja; ficam visíveis para o cliente na app.
+ * PATCH /api/store — dados da loja (Ajustes). EXCLUSIVO do administrador:
+ * os restantes perfis da equipa não têm acesso às configurações da app.
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const staff = await requireStaff(req)
+    const staff = await requireAdmin(req)
     if (!staff) {
       return NextResponse.json(
-        { error: 'Apenas a equipa (administrador ou perfil criado por ele) pode editar os dados da loja.' },
+        { error: 'As configurações da app são exclusivas do administrador.' },
         { status: 403 }
       )
     }

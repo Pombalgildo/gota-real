@@ -166,7 +166,7 @@ function ShopCard({ product }: { product: Product }) {
             </span>
           )}
         </div>
-        <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">
+        <p className="mt-1 line-clamp-3 text-xs leading-snug text-muted-foreground">
           {product.description}
         </p>
         <div className="mt-auto pt-2.5">

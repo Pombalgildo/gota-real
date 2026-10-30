@@ -56,6 +56,48 @@
       "banReason": null,
       "customerId": null,
       "createdAt": "2026-10-28T13:02:46.421Z"
+    },
+    {
+      "id": "seed_atendente_user",
+      "name": "Esperança Atendente",
+      "email": "atendente@gotareal.ao",
+      "phone": "+244 923 000 222",
+      "password": "79dfb210036a99c5f4c354c4f41e836d:3d7fabc715a11f31bdb7d0a97f077e075c5c7a3bb851fcebfb103b7d6a1c8c0d3c15549c010eb3f1f2112c0221ae5604504b4d4b78b0797fe508577ff84ee67a",
+      "role": "ATENDENTE",
+      "photo": null,
+      "active": true,
+      "banned": false,
+      "banReason": null,
+      "customerId": null,
+      "createdAt": "2026-10-28T13:00:00Z"
+    },
+    {
+      "id": "seed_editor_user",
+      "name": "Paulo Editor",
+      "email": "editor@gotareal.ao",
+      "phone": "+244 923 000 333",
+      "password": "dcd431097c26384a1574138563e45f6f:f023de1fa9b43971608dd8f294dce76844b44fe3af88932f124aac533b69bec013e27f9db0ce3e9789dc59a525c0810c24035978b54037fb85c49acc10a9853f",
+      "role": "EDITOR",
+      "photo": null,
+      "active": true,
+      "banned": false,
+      "banReason": null,
+      "customerId": null,
+      "createdAt": "2026-10-28T13:00:00Z"
+    },
+    {
+      "id": "seed_motorista_user",
+      "name": "António Motorista",
+      "email": "motorista@gotareal.ao",
+      "phone": "+244 923 000 444",
+      "password": "de5fbe8f056058ee6c8edb76aa1ce103:9301bc10737660b0094770b69fecf1b8fb7533cac57f4a5f0ffdfb88f4108567e8ccbef89b54292d79f718d56bc80a0dae1a57c1900f3dd11084deec94d4171f",
+      "role": "MOTORISTA",
+      "photo": null,
+      "active": true,
+      "banned": false,
+      "banReason": null,
+      "customerId": null,
+      "createdAt": "2026-10-28T13:00:00Z"
     }
   ],
   "customers": [
@@ -112,6 +154,16 @@
       "available": true,
       "createdAt": "2026-10-28T13:02:46.381Z",
       "userId": "cmvs4jzit0007o1ih05yetsm5"
+    },
+    {
+      "id": "seed_motorista_courier",
+      "name": "António Motorista",
+      "phone": "+244 923 000 444",
+      "vehicle": "Carro ligeiro",
+      "plate": "LD-1122-AB",
+      "available": true,
+      "userId": "seed_motorista_user",
+      "createdAt": "2026-10-28T13:00:00Z"
     }
   ],
   "products": [

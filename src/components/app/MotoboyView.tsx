@@ -36,11 +36,15 @@ import {
   Sparkles,
   Square,
   User,
+  Car,
 } from 'lucide-react'
 
 export function MotoboyView() {
   const { courierId, setCourierId, auth } = useAppStore()
   const { couriers, loading } = useCouriers()
+  // MOTORISTA entrega de carro; MOTOBOY de mota — mesmas funções,
+  // só mudam o título e o ícone
+  const isDriver = auth?.user.role === 'MOTORISTA'
 
   if (loading) {
     return (
@@ -54,20 +58,22 @@ export function MotoboyView() {
     )
   }
 
-  // motoboy entrou com perfil mas ainda sem entregador ligado — escolhe qual é o dele
+  // entregador entrou com perfil mas ainda sem veículo ligado — escolhe qual é o dele
   if (!courierId || !couriers.find((c) => c.id === courierId)) {
-    return <CourierSelect couriers={couriers} onSelect={setCourierId} />
+    return <CourierSelect couriers={couriers} onSelect={setCourierId} isDriver={isDriver} />
   }
 
-  return <MotoboyPanel courierName={auth?.user.name} />
+  return <MotoboyPanel courierName={auth?.user.name} isDriver={isDriver} />
 }
 
 function CourierSelect({
   couriers,
   onSelect,
+  isDriver,
 }: {
   couriers: { id: string; name: string; vehicle: string; plate: string }[]
   onSelect: (id: string) => void
+  isDriver?: boolean
 }) {
   return (
     <div className="min-h-dvh gota-gradient px-5 py-8">
@@ -75,11 +81,13 @@ function CourierSelect({
         <LogoutButton light label="Terminar sessão" />
         <div className="glass-card rounded-3xl p-6 text-white shadow-xl">
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30">
-            <Bike className="h-8 w-8" />
+            {isDriver ? <Car className="h-8 w-8" /> : <Bike className="h-8 w-8" />}
           </span>
-          <h1 className="mt-4 text-center text-xl font-black">Painel do Motoboy</h1>
+          <h1 className="mt-4 text-center text-xl font-black">
+            {isDriver ? 'Painel do Motorista' : 'Painel do Motoboy'}
+          </h1>
           <p className="mt-1 text-center text-sm text-[#cfe7f8]">
-            O seu perfil ainda não tem mota atribuída. Escolha o seu registo:
+            O seu perfil ainda não tem veículo atribuído. Escolha o seu registo:
           </p>
           <div className="mt-6 space-y-2.5">
             {couriers.map((c) => (
@@ -107,7 +115,7 @@ function CourierSelect({
   )
 }
 
-function MotoboyPanel({ courierName }: { courierName?: string }) {
+function MotoboyPanel({ courierName, isDriver }: { courierName?: string; isDriver?: boolean }) {
   const { courierId, auth } = useAppStore()
   const { couriers } = useCouriers()
   const { orders, loading } = useAllOrders()
@@ -130,13 +138,15 @@ function MotoboyPanel({ courierName }: { courierName?: string }) {
             photo={auth?.user.photo ?? null}
             name={courierName ?? courier?.name ?? 'M'}
             className="h-11 w-11 rounded-2xl ring-2 ring-white/40"
-            icon={<Bike className="h-5 w-5" />}
+            icon={isDriver ? <Car className="h-5 w-5" /> : <Bike className="h-5 w-5" />}
           />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
-              entregador · {courier?.vehicle} {courier?.plate}
+              {isDriver ? 'motorista' : 'entregador'} · {courier?.vehicle} {courier?.plate}
             </p>
-            <h1 className="truncate text-lg font-black leading-tight">{courierName ?? courier?.name ?? 'Motoboy'}</h1>
+            <h1 className="truncate text-lg font-black leading-tight">
+              {courierName ?? courier?.name ?? (isDriver ? 'Motorista' : 'Motoboy')}
+            </h1>
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
             <span className="live-dot" /> ao vivo
@@ -206,6 +216,7 @@ function MotoboyPanel({ courierName }: { courierName?: string }) {
 
 function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_transit' }) {
   const { toast } = useToast()
+  const { auth } = useAppStore()
   const [busy, setBusy] = useState(false)
 
   // GPS ao vivo
@@ -313,7 +324,7 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
   async function act(action: 'dispatch' | 'deliver') {
     setBusy(true)
     try {
-      await orderAction(order.id, action)
+      await orderAction(auth?.token ?? '', order.id, action)
       if (action === 'dispatch') {
         toast({ title: 'Entrega iniciada 🛵', description: 'O cliente já o vê a chegar no mapa.' })
         simulateRide()

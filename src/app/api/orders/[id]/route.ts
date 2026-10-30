@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
 import { getOrderFull } from '@/lib/orders'
+import { ORDER_MANAGER_ROLES, DELIVERY_ROLES, requireRole } from '@/lib/auth'
 
 // GET /api/orders/[id] - detalhe do pedido (com motoboy, para tracking GPS)
 export async function GET(
@@ -21,8 +22,10 @@ export async function GET(
   }
 }
 
-// PATCH /api/orders/[id] - acções da central e do motoboy
+// PATCH /api/orders/[id] - acções da central e do entregador
 // body: { action: "confirm" | "assign" | "dispatch" | "deliver" | "cancel", courierId? }
+// Permissões: confirmar/atribuir/cancelar → administrador ou atendente;
+// despachar/concluir → também o próprio entregador (motoboy ou motorista).
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -31,9 +34,31 @@ export async function PATCH(
     const { id } = await params
     const { action, courierId } = await req.json()
 
+    const manager = await requireRole(req, ORDER_MANAGER_ROLES)
+    const courierUser = manager ? null : await requireRole(req, DELIVERY_ROLES)
+    if (!manager && !courierUser) {
+      return NextResponse.json(
+        { error: 'Sem permissão para gerir pedidos.' },
+        { status: 403 }
+      )
+    }
+    // o entregador só pode despachar e concluir as SUAS entregas
+    if (courierUser && action !== 'dispatch' && action !== 'deliver') {
+      return NextResponse.json(
+        { error: 'O entregador só pode iniciar e concluir as suas entregas.' },
+        { status: 403 }
+      )
+    }
+
     const order = await db.order.findUnique({ where: { id }, include: { items: true } })
     if (!order) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 })
+    }
+    if (courierUser && order.courierId !== courierUser.courier?.id) {
+      return NextResponse.json(
+        { error: 'Esta entrega não está atribuída a você.' },
+        { status: 403 }
+      )
     }
 
     const now = new Date()

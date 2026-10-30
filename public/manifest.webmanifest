@@ -1,0 +1,35 @@
+{
+  "name": "Gota REAL — Água Purificada com Entrega",
+  "short_name": "Gota REAL",
+  "description": "Peça água purificada Gota REAL em bidões de 5L e outros formatos, com entrega ao domicílio em Luanda. Pague por TPA ou dinheiro e acompanhe a entrega por GPS em tempo real.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A3D7C",
+  "theme_color": "#0A3D7C",
+  "lang": "pt",
+  "dir": "ltr",
+  "categories": ["shopping", "food", "business"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

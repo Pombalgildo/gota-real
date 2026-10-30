@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin, hashPassword } from '@/lib/auth'
+import { requireAdmin, hashPassword, WORKER_ROLES, DELIVERY_ROLES } from '@/lib/auth'
 import { emitRealtime } from '@/lib/realtime-emitter'
 
 type Params = { params: Promise<{ id: string }> }
@@ -74,7 +74,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // mudança de tipo de perfil
     if (body.role != null) {
       const newRole = String(body.role).toUpperCase()
-      if (!['ADMIN', 'MOTOBOY', 'CLIENTE'].includes(newRole)) {
+      const ALL_ROLES = [...WORKER_ROLES, 'CLIENTE']
+      if (!ALL_ROLES.includes(newRole)) {
         return NextResponse.json({ error: 'Tipo de perfil inválido.' }, { status: 400 })
       }
       if (self && newRole !== 'ADMIN') {
@@ -85,13 +86,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
       data.role = newRole
 
-      // virou motoboy → cria o registo de entregador se não tiver
-      if (newRole === 'MOTOBOY' && !user.courier) {
+      // virou perfil de entrega → cria o registo de entregador se não tiver
+      const isDelivery = (DELIVERY_ROLES as readonly string[]).includes(newRole)
+      if (isDelivery && !user.courier) {
         const courier = await db.courier.create({
           data: {
             name: String(data.name ?? user.name),
             phone: String(data.phone ?? user.phone ?? '') || '—',
-            vehicle: String(body.vehicle ?? '').trim() || 'Mota',
+            vehicle:
+              String(body.vehicle ?? '').trim() ||
+              (newRole === 'MOTORISTA' ? 'Carro ligeiro' : 'Mota'),
             plate: String(body.plate ?? '').trim() || '—',
             latitude: -8.847,
             longitude: 13.241,
@@ -100,16 +104,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         // liga o entregador a este perfil (a chave vive no Courier)
         await db.courier.update({ where: { id: courier.id }, data: { userId: user.id } })
       }
-      // deixou de ser motoboy → remove o registo de entregador
-      if (newRole !== 'MOTOBOY' && user.courier) {
+      // deixou de ser entregador → remove o registo de entregador
+      if (!isDelivery && user.courier) {
         await db.courier.delete({ where: { id: user.courier.id } }).catch(() => undefined)
       }
     }
 
-    // dados do veículo do motoboy
+    // dados do veículo do entregador (mota ou carro)
     if (user.courier && (body.vehicle != null || body.plate != null)) {
       const cData: Record<string, string> = {}
-      if (body.vehicle != null) cData.vehicle = String(body.vehicle).trim() || 'Mota'
+      if (body.vehicle != null)
+        cData.vehicle = String(body.vehicle).trim() || 'Mota'
       if (body.plate != null) cData.plate = String(body.plate).trim() || '—'
       if (data.name != null) cData.name = String(data.name)
       if (data.phone != null) cData.phone = String(data.phone)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
+import { CATALOG_ROLES, requireRole } from '@/lib/auth'
 
 // limite do data URL da foto (~1,4 MB em base64 ≈ foto de 900px já comprimida)
 const MAX_IMAGE_LENGTH = 1_500_000
@@ -25,13 +26,20 @@ function validateImage(image: unknown): string | null | undefined {
   return image
 }
 
-// PATCH /api/products/[id] - actualizar produto (central/administrador)
+// PATCH /api/products/[id] - actualizar produto (administrador ou editor)
 // usado para ALTERAR PREÇOS, stock, foto real do artigo, etc.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const staff = await requireRole(req, CATALOG_ROLES)
+    if (!staff) {
+      return NextResponse.json(
+        { error: 'Apenas o administrador ou o editor podem gerir a loja.' },
+        { status: 403 }
+      )
+    }
     const { id } = await params
     const body = await req.json()
     const {
@@ -84,12 +92,19 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/products/[id] - desactivar produto (central)
+// DELETE /api/products/[id] - desactivar produto (administrador ou editor)
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const staff = await requireRole(req, CATALOG_ROLES)
+    if (!staff) {
+      return NextResponse.json(
+        { error: 'Apenas o administrador ou o editor podem gerir a loja.' },
+        { status: 403 }
+      )
+    }
     const { id } = await params
     const product = await db.product.findUnique({ where: { id } })
     if (!product) {

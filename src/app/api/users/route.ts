@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin, hashPassword } from '@/lib/auth'
+import { requireAdmin, hashPassword, WORKER_ROLES, DELIVERY_ROLES } from '@/lib/auth'
 import { emitRealtime } from '@/lib/realtime-emitter'
 
 /**
@@ -36,7 +36,8 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/users — o administrador cria perfis de trabalhadores
- * (outro administrador ou motoboy, com senha de entrada própria).
+ * (administrador, atendente, editor, motoboy ou motorista,
+ * com senha de entrada própria).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -74,9 +75,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    if (!['ADMIN', 'MOTOBOY'].includes(role)) {
+    if (!(WORKER_ROLES as readonly string[]).includes(role)) {
       return NextResponse.json(
-        { error: 'Escolha o tipo de perfil: Administrador ou Motoboy.' },
+        {
+          error:
+            'Escolha o tipo de perfil: Administrador, Atendente, Editor, Motoboy ou Motorista.',
+        },
         { status: 400 }
       )
     }
@@ -89,14 +93,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // se for motoboy, cria também o registo de entregador ligado
+    // se for perfil de entrega (mota ou carro), cria também o registo de entregador ligado
     let courierId: string | null = null
-    if (role === 'MOTOBOY') {
+    if ((DELIVERY_ROLES as readonly string[]).includes(role)) {
       const courier = await db.courier.create({
         data: {
           name,
           phone: phone || '—',
-          vehicle: vehicle || 'Mota',
+          vehicle: vehicle || (role === 'MOTORISTA' ? 'Carro ligeiro' : 'Mota'),
           plate: plate || '—',
           latitude: -8.847,
           longitude: 13.241,

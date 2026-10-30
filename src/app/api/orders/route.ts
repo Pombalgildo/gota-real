@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
 import { listOrders, nextOrderNumber } from '@/lib/orders'
+import { ORDER_MANAGER_ROLES, DELIVERY_ROLES, requireRole } from '@/lib/auth'
 
 // POST /api/orders - cliente solicita a mercadoria
 export async function POST(req: NextRequest) {
@@ -119,13 +120,22 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/orders?customerId=... - pedidos do cliente
-// GET /api/orders?all=1 - todos os pedidos (central)
+// GET /api/orders?all=1 - todos os pedidos (central: admin/atendente e entregadores)
 export async function GET(req: NextRequest) {
   try {
     const customerId = req.nextUrl.searchParams.get('customerId')
     const all = req.nextUrl.searchParams.get('all')
     if (!customerId && !all) {
       return NextResponse.json({ error: 'Informe customerId ou all=1.' }, { status: 400 })
+    }
+    if (all) {
+      const staff = await requireRole(req, [...ORDER_MANAGER_ROLES, ...DELIVERY_ROLES])
+      if (!staff) {
+        return NextResponse.json(
+          { error: 'Apenas a equipa de pedidos e entregas pode ver todos os pedidos.' },
+          { status: 403 }
+        )
+      }
     }
     const orders = await listOrders(customerId ? { customerId } : undefined)
     return NextResponse.json({ orders })

@@ -99,14 +99,14 @@ export function HomeView() {
             <div className="h-24 w-24 shrink-0 drop-shadow-lg transition-transform duration-200 group-hover:scale-105 sm:h-28 sm:w-28">
               <ProductPhoto product={bidon} className="h-24 w-24 sm:h-28 sm:w-28" rounded="rounded-3xl" />
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 pr-1">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gold">
                 pedido rápido · 1 toque
               </p>
               <h2 className="mt-1 text-2xl font-black leading-tight">
                 PEDIR ÁGUA<br />AGORA
               </h2>
-              <p className="mt-1 text-xs font-semibold text-[#BDE3F5]">
+              <p className="mt-1 text-xs font-semibold leading-snug text-[#BDE3F5]">
                 Bidão de 5L · {formatKz(bidon.priceKz)} · entregamos onde estiver
               </p>
             </div>

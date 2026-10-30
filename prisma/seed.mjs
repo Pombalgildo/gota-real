@@ -63,6 +63,49 @@ async function main() {
     console.log(`[seed] ${data.users.length} utilizador(es) criado(s) (admin, motoboy, cliente demo)`)
   }
 
+  // ---------- contas demo da equipa por perfil ----------
+  // Cria cada conta se ainda não existir NENHUM utilizador com aquele perfil
+  // (idempotente: nunca sobrescreve, e se o administrador criar os seus
+  // próprios perfis os demos não voltam a aparecer).
+  const DEMO_BY_ROLE = ['ADMIN', 'MOTOBOY', 'ATENDENTE', 'EDITOR', 'MOTORISTA']
+  for (const role of DEMO_BY_ROLE) {
+    const demo = data.users.find((u) => u.role === role)
+    if (!demo) continue
+    const hasRole = await db.user.findFirst({ where: { role } })
+    if (hasRole) continue
+    const emailTaken = await db.user.findUnique({ where: { email: demo.email } })
+    if (emailTaken) continue
+    const created = await db.user.create({
+      data: {
+        name: demo.name,
+        email: demo.email,
+        phone: demo.phone,
+        password: demo.password,
+        role,
+        active: true,
+      },
+    })
+    // perfil de entrega sem entregador ligado → cria o veículo e liga
+    if (role === 'MOTOBOY' || role === 'MOTORISTA') {
+      const courier = await db.courier.create({
+        data: {
+          name: demo.name,
+          phone: demo.phone || '—',
+          vehicle: role === 'MOTORISTA' ? 'Carro ligeiro' : 'Mota',
+          plate: '—',
+          latitude: -8.847,
+          longitude: 13.241,
+          available: true,
+          userId: created.id,
+        },
+      })
+      console.log(`[seed] demo ${role}: ${demo.email} + veículo criados`)
+      void courier
+    } else {
+      console.log(`[seed] demo ${role}: ${demo.email} criado`)
+    }
+  }
+
   // ---------- motoboys ----------
   if ((await db.courier.count()) === 0 && data.couriers.length > 0) {
     for (const c of data.couriers) {
@@ -132,7 +175,7 @@ async function main() {
     db.courier.count(),
     db.product.count(),
   ])
-  console.log(`[seed] estado final: ${u} utilizadores · ${c} clientes · ${k} motoboys · ${p} produtos`)
+  console.log(`[seed] estado final: ${u} utilizadores · ${c} clientes · ${k} entregadores · ${p} produtos`)
 }
 
 main()

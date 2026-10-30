@@ -12,6 +12,7 @@ import {
   fetchUsers,
 } from '@/lib/api'
 import { getRealtimeSocket, isRealtimeConnected } from '@/lib/realtime-client'
+import { useAppStore } from '@/store/app-store'
 
 /**
  * Hooks de dados com actualização em tempo real.
@@ -131,17 +132,19 @@ export function useCustomerOrders(customerId: string | null | undefined) {
 export function useAllOrders() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  // token da equipa — necessário para ver todos os pedidos
+  const token = useAppStore((s) => s.auth?.token ?? null)
 
   const reload = useCallback(async () => {
     try {
-      const { orders } = await fetchAllOrders()
+      const { orders } = await fetchAllOrders(token)
       setOrders(orders)
     } catch {
       // silencioso
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [token])
 
   useEffect(() => {
     reload()
@@ -202,17 +205,19 @@ export function useCouriers() {
 export function useFeedback(customerId?: string | null) {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
+  // token da equipa — necessário para listar todas as mensagens (central)
+  const token = useAppStore((s) => s.auth?.token ?? null)
 
   const reload = useCallback(async () => {
     try {
-      const { feedbacks } = await fetchFeedback(customerId ?? undefined)
+      const { feedbacks } = await fetchFeedback(customerId ?? undefined, token)
       setFeedbacks(feedbacks)
     } catch {
       // silencioso
     } finally {
       setLoading(false)
     }
-  }, [customerId])
+  }, [customerId, token])
 
   useEffect(() => {
     reload()

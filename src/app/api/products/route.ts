@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ensureSeed } from '@/lib/seed'
 import { emitRealtime } from '@/lib/realtime-emitter'
+import { CATALOG_ROLES, requireRole } from '@/lib/auth'
 
 // limite do data URL da foto (~1,4 MB em base64 ≈ foto de 900px já comprimida)
 const MAX_IMAGE_LENGTH = 1_500_000
@@ -33,9 +34,16 @@ export async function GET() {
   }
 }
 
-// POST /api/products - criar produto (central/administrador)
+// POST /api/products - criar produto (administrador ou editor da loja)
 export async function POST(req: NextRequest) {
   try {
+    const staff = await requireRole(req, CATALOG_ROLES)
+    if (!staff) {
+      return NextResponse.json(
+        { error: 'Apenas o administrador ou o editor podem gerir a loja.' },
+        { status: 403 }
+      )
+    }
     const body = await req.json()
     const {
       name,

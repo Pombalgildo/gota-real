@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAdmin } from '@/lib/auth'
 import { ensureSeed } from '@/lib/seed'
 
 // GET /api/couriers - lista de motoboys (equipa)
@@ -25,6 +26,13 @@ export async function GET() {
 // POST /api/couriers - adicionar motoboy (central)
 export async function POST(req: NextRequest) {
   try {
+    const admin = await requireAdmin(req)
+    if (!admin) {
+      return NextResponse.json(
+        { error: 'Apenas o administrador pode criar entregadores.' },
+        { status: 403 }
+      )
+    }
     const body = await req.json()
     const { name, phone, vehicle, plate, latitude, longitude } = body
     if (!name) {

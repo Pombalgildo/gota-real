@@ -4,8 +4,22 @@ import { db } from '@/lib/db'
 
 /**
  * Autenticação por perfil com senha encriptada (scrypt) e sessões na base de dados.
- * Perfis: ADMIN (administrador), MOTOBOY (entregador), CLIENTE.
+ *
+ * Perfis:
+ *   ADMIN      — administrador: acesso total; ÚNICO com Ajustes e gestão de perfis
+ *   ATENDENTE  — recebe e gere pedidos (confirmar, atribuir, cancelar) e responde mensagens
+ *   EDITOR     — gere a loja: produtos, fotos, preços e stock
+ *   MOTOBOY    — entregas de mota com GPS
+ *   MOTORISTA  — entregas de carro ligeiro com GPS
+ *   CLIENTE    — faz pedidos
  */
+
+// ---------- Perfis e permissões ----------
+export const WORKER_ROLES = ['ADMIN', 'ATENDENTE', 'EDITOR', 'MOTOBOY', 'MOTORISTA'] as const
+export const CENTRAL_ROLES = ['ADMIN', 'ATENDENTE', 'EDITOR'] as const
+export const ORDER_MANAGER_ROLES = ['ADMIN', 'ATENDENTE'] as const
+export const CATALOG_ROLES = ['ADMIN', 'EDITOR'] as const
+export const DELIVERY_ROLES = ['MOTOBOY', 'MOTORISTA'] as const
 
 const SESSION_DAYS = 30
 
@@ -70,9 +84,16 @@ export async function requireAdmin(req: NextRequest) {
 /** Exige um trabalhador autenticado (administrador ou perfil criado por ele). */
 export async function requireStaff(req: NextRequest) {
   const user = await getUserFromRequest(req)
-  if (!user || !['ADMIN', 'MOTOBOY'].includes(user.role) || !user.active || user.banned) {
+  if (!user || !(WORKER_ROLES as readonly string[]).includes(user.role) || !user.active || user.banned) {
     return null
   }
+  return user
+}
+
+/** Exige um perfil autenticado com um dos papéis indicados. */
+export async function requireRole(req: NextRequest, roles: readonly string[]) {
+  const user = await getUserFromRequest(req)
+  if (!user || !roles.includes(user.role) || !user.active || user.banned) return null
   return user
 }
 

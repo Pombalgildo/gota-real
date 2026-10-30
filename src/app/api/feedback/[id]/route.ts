@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
+import { ORDER_MANAGER_ROLES, requireRole } from '@/lib/auth'
 
 // PATCH /api/feedback/[id] - central responde / actualiza estado
+// (administrador ou atendente)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const staff = await requireRole(req, ORDER_MANAGER_ROLES)
+    if (!staff) {
+      return NextResponse.json(
+        { error: 'Apenas o administrador ou a atendente podem responder mensagens.' },
+        { status: 403 }
+      )
+    }
     const { id } = await params
     const { response, status } = await req.json()
 

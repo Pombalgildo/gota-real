@@ -55,7 +55,7 @@ export function createUser(
     email: string
     phone?: string
     password: string
-    role: 'ADMIN' | 'MOTOBOY'
+    role: 'ADMIN' | 'ATENDENTE' | 'EDITOR' | 'MOTOBOY' | 'MOTORISTA'
     vehicle?: string
     plate?: string
     photo?: string | null
@@ -175,22 +175,27 @@ export function fetchProducts() {
   return request<{ products: Product[] }>('/api/products')
 }
 
-export function createProduct(body: Partial<Product>) {
+export function createProduct(token: string, body: Partial<Product>) {
   return request<{ product: Product }>('/api/products', {
     method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   })
 }
 
-export function updateProduct(id: string, body: Partial<Product>) {
+export function updateProduct(token: string, id: string, body: Partial<Product>) {
   return request<{ product: Product }>(`/api/products/${id}`, {
     method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   })
 }
 
-export function deactivateProduct(id: string) {
-  return request<{ product: Product }>(`/api/products/${id}`, { method: 'DELETE' })
+export function deactivateProduct(token: string, id: string) {
+  return request<{ product: Product }>(`/api/products/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
 }
 
 // ---------- Pedidos ----------
@@ -213,8 +218,10 @@ export function fetchCustomerOrders(customerId: string) {
   return request<{ orders: Order[] }>(`/api/orders?customerId=${customerId}`)
 }
 
-export function fetchAllOrders() {
-  return request<{ orders: Order[] }>('/api/orders?all=1')
+export function fetchAllOrders(token?: string | null) {
+  return request<{ orders: Order[] }>('/api/orders?all=1', {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
 }
 
 export function fetchOrder(id: string) {
@@ -222,12 +229,14 @@ export function fetchOrder(id: string) {
 }
 
 export function orderAction(
+  token: string,
   id: string,
   action: 'confirm' | 'assign' | 'dispatch' | 'deliver' | 'cancel',
   courierId?: string
 ) {
   return request<{ order: Order }>(`/api/orders/${id}`, {
     method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ action, courierId }),
   })
 }
@@ -255,9 +264,11 @@ export function updateCourier(
 }
 
 // ---------- Sugestões e Reclamações ----------
-export function fetchFeedback(customerId?: string) {
+export function fetchFeedback(customerId?: string, token?: string | null) {
   const q = customerId ? `?customerId=${customerId}` : ''
-  return request<{ feedbacks: Feedback[] }>(`/api/feedback${q}`)
+  return request<{ feedbacks: Feedback[] }>(`/api/feedback${q}`, {
+    headers: !customerId && token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
 }
 
 export function createFeedback(body: {
@@ -272,9 +283,10 @@ export function createFeedback(body: {
   })
 }
 
-export function respondFeedback(id: string, response: string) {
+export function respondFeedback(token: string, id: string, response: string) {
   return request<{ feedback: Feedback }>(`/api/feedback/${id}`, {
     method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ response }),
   })
 }

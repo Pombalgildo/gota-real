@@ -19,6 +19,7 @@ import { Avatar } from '@/components/app/Avatar'
 import { getRealtimeSocket } from '@/lib/realtime-client'
 import { cn } from '@/lib/utils'
 import type { CustomerTab } from '@/store/app-store'
+import { CENTRAL_ROLES, DELIVERY_ROLES, ROLE_LABEL } from '@/lib/types'
 import {
   Home,
   MessageSquareHeart,
@@ -60,9 +61,11 @@ export function GotaRealApp() {
   }
 
   // PAINÉIS DA EQUIPA — abertos com o login do próprio perfil:
-  // o ADMINISTRADOR entra na Central, o MOTOBOY entra nas entregas
-  if (auth?.user.role === 'ADMIN') return <CentralView />
-  if (auth?.user.role === 'MOTOBOY') return <MotoboyView />
+  // ADMIN/ATENDENTE/EDITOR entram na Central (com abas conforme o perfil),
+  // MOTOBOY/MOTORISTA entram nas entregas
+  const role = auth?.user.role
+  if ((CENTRAL_ROLES as string[]).includes(role ?? '')) return <CentralView />
+  if ((DELIVERY_ROLES as string[]).includes(role ?? '')) return <MotoboyView />
 
   if (!customer) return <OnboardingView />
 

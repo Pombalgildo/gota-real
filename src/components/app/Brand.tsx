@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 
-/** Logo oficial (versão quadrada, fundo escuro) */
+/** Logo oficial (versão quadrada, fundo BRANCO) */
 export function BrandLogo({
   size = 44,
   className,
@@ -12,11 +12,11 @@ export function BrandLogo({
 }) {
   return (
     <img
-      src="/gota-real-logo-square.png"
+      src="/gota-real-logo-square-white.png"
       alt="Logo Gota REAL"
       width={size}
       height={size}
-      className={cn('rounded-xl object-cover ring-2 ring-white/40 shadow-lg', className)}
+      className={cn('rounded-xl object-cover bg-white shadow-lg', className)}
       style={{ width: size, height: size }}
     />
   )
@@ -72,35 +72,39 @@ export function BrandWordmark({
   light?: boolean
   size?: 'sm' | 'md' | 'lg'
 }) {
+  // o letter-spacing (tracking) acrescenta espaço DEPOIS de cada letra,
+  // incluindo a última — o texto parece deslocado à esquerda.
+  // compensamos com padding-left igual ao tracking para centrar de facto.
   const sizes = {
-    sm: { script: 'text-2xl', real: 'text-sm tracking-[0.3em]', sub: 'text-[8px]' },
-    md: { script: 'text-4xl', real: 'text-lg tracking-[0.32em]', sub: 'text-[9px]' },
-    lg: { script: 'text-6xl', real: 'text-3xl tracking-[0.35em]', sub: 'text-xs' },
+    sm: { script: 'text-2xl', real: 'text-sm tracking-[0.3em]', sub: 'text-[8px]', realPad: '0.3em', subPad: '0.42em' },
+    md: { script: 'text-4xl', real: 'text-lg tracking-[0.32em]', sub: 'text-[9px]', realPad: '0.32em', subPad: '0.42em' },
+    lg: { script: 'text-6xl', real: 'text-3xl tracking-[0.35em]', sub: 'text-xs', realPad: '0.35em', subPad: '0.42em' },
   }[size]
 
   return (
     <div className={cn('flex flex-col items-center leading-none select-none', className)}>
       <span
-        className={cn('font-script', sizes.script, light ? 'text-[#8FD4F8]' : 'text-primary')}
+        className={cn('font-script text-center', sizes.script, light ? 'text-[#8FD4F8]' : 'text-primary')}
       >
         Gota
       </span>
       <span
         className={cn(
-          'font-black uppercase',
+          'font-black uppercase text-center',
           sizes.real,
           light ? 'text-white' : 'text-navy'
         )}
-        style={{ textShadow: light ? '0 2px 8px rgba(0,0,0,0.35)' : undefined }}
+        style={{ textShadow: light ? '0 2px 8px rgba(0,0,0,0.35)' : undefined, paddingLeft: sizes.realPad }}
       >
         REAL
       </span>
       <span
         className={cn(
-          'uppercase tracking-[0.42em] font-semibold mt-1',
+          'uppercase tracking-[0.42em] font-semibold mt-1 text-center',
           sizes.sub,
           light ? 'text-[#BDE3F5]' : 'text-gold'
         )}
+        style={{ paddingLeft: sizes.subPad }}
       >
         Água Purificada
       </span>

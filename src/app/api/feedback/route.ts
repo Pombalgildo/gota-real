@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
+import { ORDER_MANAGER_ROLES, requireRole } from '@/lib/auth'
 
 // GET /api/feedback?customerId=... - sugestões e reclamações
-// (sem customerId = todas, usado pela central)
+// (sem customerId = todas, usado pela central: admin e atendente)
 export async function GET(req: NextRequest) {
   try {
     const customerId = req.nextUrl.searchParams.get('customerId')
+    if (!customerId) {
+      const staff = await requireRole(req, ORDER_MANAGER_ROLES)
+      if (!staff) {
+        return NextResponse.json(
+          { error: 'Apenas a equipa pode ver todas as mensagens.' },
+          { status: 403 }
+        )
+      }
+    }
     const feedbacks = await db.feedback.findMany({
       where: customerId ? { customerId } : undefined,
       include: {

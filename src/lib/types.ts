@@ -1,12 +1,41 @@
 // Tipos partilhados entre o front-end e a API
 
-export type UserRole = 'ADMIN' | 'MOTOBOY' | 'CLIENTE'
+export type UserRole =
+  | 'ADMIN'
+  | 'ATENDENTE'
+  | 'EDITOR'
+  | 'MOTOBOY'
+  | 'MOTORISTA'
+  | 'CLIENTE'
 
 export const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
+  ATENDENTE: 'Atendente',
+  EDITOR: 'Editor',
   MOTOBOY: 'Motoboy',
+  MOTORISTA: 'Motorista',
   CLIENTE: 'Cliente',
 }
+
+/** Descrição curta de cada perfil de trabalhador (usada na criação de perfis). */
+export const ROLE_DESCRIPTION: Record<string, string> = {
+  ADMIN: 'acesso total · ajustes e perfis',
+  ATENDENTE: 'recebe e gere os pedidos e mensagens',
+  EDITOR: 'gere a loja: fotos, preços e stock',
+  MOTOBOY: 'entregas de mota com GPS',
+  MOTORISTA: 'entregas de carro ligeiro com GPS',
+}
+
+/** Perfis que entram no painel da Central. */
+export const CENTRAL_ROLES: string[] = ['ADMIN', 'ATENDENTE', 'EDITOR']
+/** Perfis de entrega (mota ou carro). */
+export const DELIVERY_ROLES: string[] = ['MOTOBOY', 'MOTORISTA']
+/** Perfis que gerem pedidos (Central → Pedidos/Mensagens). */
+export const ORDER_MANAGER_ROLES: string[] = ['ADMIN', 'ATENDENTE']
+/** Perfis que gerem o catálogo da loja. */
+export const CATALOG_ROLES: string[] = ['ADMIN', 'EDITOR']
+/** Todos os perfis de trabalhador. */
+export const WORKER_ROLES: string[] = ['ADMIN', 'ATENDENTE', 'EDITOR', 'MOTOBOY', 'MOTORISTA']
 
 // ---------- Utilizador (login por perfil) ----------
 export interface User {
