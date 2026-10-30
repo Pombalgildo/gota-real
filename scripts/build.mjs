@@ -32,6 +32,28 @@ function run(cmd) {
   execSync(cmd, { stdio: 'inherit', env })
 }
 
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+/**
+ * O Neon (free tier) suspende a base por inactividade — o primeiro contacto
+ * pode exceder os 10s do advisory lock do `prisma migrate deploy` (P1002).
+ * Repetimos algumas vezes com pausa para atravessar o cold-start.
+ */
+function runWithRetry(cmd, attempts = 4, waitMs = 8000) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      run(cmd)
+      return
+    } catch (err) {
+      if (i === attempts) throw err
+      console.log(`[build] tentativa ${i}/${attempts} falhou — nova tentativa em ${waitMs / 1000}s…`)
+      sleep(waitMs)
+    }
+  }
+}
+
 const url = resolveDatabaseUrl()
 const isLocalSqlite = url.startsWith('file:')
 
@@ -44,7 +66,7 @@ if (isLocalSqlite) {
 } else {
   console.log('[build] produção (PostgreSQL) — migração + seed + build')
   run('npx prisma generate --schema prisma/schema.prisma')
-  run('npx prisma migrate deploy --schema prisma/schema.prisma')
-  run('node prisma/seed.mjs')
+  runWithRetry('npx prisma migrate deploy --schema prisma/schema.prisma')
+  runWithRetry('node prisma/seed.mjs', 3)
   run('next build')
 }
