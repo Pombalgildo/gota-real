@@ -200,7 +200,7 @@ function CentralTabs({ role }: { role: string }) {
     <Tabs defaultValue={defaultTab}>
       <TabsList
         className={cn(
-          'grid w-full rounded-xl bg-secondary p-1',
+          'grid h-auto w-full gap-1.5 rounded-xl bg-secondary p-1.5',
           tabs.length === 1 && 'grid-cols-1',
           tabs.length === 2 && 'grid-cols-2',
           tabs.length >= 3 && 'grid-cols-3 sm:grid-cols-5'
@@ -210,9 +210,9 @@ function CentralTabs({ role }: { role: string }) {
           <TabsTrigger
             key={t.value}
             value={t.value}
-            className="min-w-0 rounded-lg px-1 text-[10px] font-bold data-[state=active]:bg-white sm:text-xs"
+            className="h-auto min-w-0 rounded-lg px-1 py-2.5 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs"
           >
-            <t.icon className="mr-0.5 h-3.5 w-3.5 shrink-0" />
+            <t.icon className="h-4 w-4 shrink-0" />
             <span className="min-w-0 truncate">{t.label}</span>
           </TabsTrigger>
         ))}
