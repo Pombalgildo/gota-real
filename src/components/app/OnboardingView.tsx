@@ -99,7 +99,7 @@ export function OnboardingView() {
       <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-[#37b6f5]/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-[#d9a62e]/15 blur-3xl" />
 
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8 pb-36">
         {/* topo com logo (fundo branco, texto centrado por baixo) */}
         <div className="flex flex-col items-center pt-6">
           <BrandLogo size={92} className="ring-4 ring-white/60" />

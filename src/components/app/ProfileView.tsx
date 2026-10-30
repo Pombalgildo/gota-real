@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useAppStore, formatDateTime } from '@/store/app-store'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { LogoutButton } from '@/components/app/LoginDialog'
+import { InstallAppCard } from '@/components/app/InstallPrompt'
 import { DropCrownIcon } from '@/components/app/Brand'
 import { Avatar } from '@/components/app/Avatar'
 import { updateCustomer } from '@/lib/api'
@@ -408,6 +409,9 @@ export function ProfileView() {
           </div>
         )}
       </div>
+
+      {/* ---------- INSTALAR A APP NO TELEMOVEL ---------- */}
+      <InstallAppCard />
 
       {/* segurança / sair */}
       <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-4 shadow-sm">

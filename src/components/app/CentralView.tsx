@@ -9,6 +9,7 @@ import { ProductPhoto } from '@/components/app/ProductPhoto'
 import { Avatar, PhotoPicker } from '@/components/app/Avatar'
 import { resizeImageToDataUrl } from '@/lib/image'
 import { LogoutButton } from '@/components/app/LoginDialog'
+import { InstallPrompt } from '@/components/app/InstallPrompt'
 import {
   orderAction,
   respondFeedback,
@@ -90,7 +91,7 @@ export function CentralView() {
     : `${roleLabel} · ${staffName}`
 
   return (
-    <div className="min-h-dvh bg-background pb-24">
+    <div className="min-h-dvh bg-background pb-44">
       {/* cabeçalho */}
       <header className="gota-gradient px-4 pb-16 pt-5 text-white shadow-lg">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
@@ -125,6 +126,8 @@ export function CentralView() {
         <CentralStats role={role} />
         <CentralTabs role={role} />
       </div>
+
+      <InstallPrompt placement="floating" />
     </div>
   )
 }

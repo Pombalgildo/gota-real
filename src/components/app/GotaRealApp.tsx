@@ -13,6 +13,7 @@ import { ProfileView } from '@/components/app/ProfileView'
 import { CentralView } from '@/components/app/CentralView'
 import { MotoboyView } from '@/components/app/MotoboyView'
 import { CheckoutSheet } from '@/components/app/CheckoutSheet'
+import { InstallPrompt } from '@/components/app/InstallPrompt'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { BrandLogo } from '@/components/app/Brand'
 import { Avatar } from '@/components/app/Avatar'
@@ -67,7 +68,13 @@ export function GotaRealApp() {
   if ((CENTRAL_ROLES as string[]).includes(role ?? '')) return <CentralView />
   if ((DELIVERY_ROLES as string[]).includes(role ?? '')) return <MotoboyView />
 
-  if (!customer) return <OnboardingView />
+  if (!customer)
+    return (
+      <>
+        <OnboardingView />
+        <InstallPrompt placement="floating" />
+      </>
+    )
 
   return <CustomerApp />
 }
@@ -199,7 +206,7 @@ function CustomerApp() {
 
       {/* navegação inferior — botões grandes */}
       <nav
-        className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t-2 border-border bg-white/95 backdrop-blur-md"
+        className="safe-bottom app-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t-2 border-border bg-white/95 backdrop-blur-md"
         aria-label="Navegação principal"
       >
         <div className="mx-auto grid max-w-3xl grid-cols-5">
@@ -238,6 +245,9 @@ function CustomerApp() {
       </nav>
 
       <CheckoutSheet />
+
+      {/* aviso para instalar a app (Android/iPhone) — por cima do menu */}
+      <InstallPrompt placement="above-nav" />
     </div>
   )
 }

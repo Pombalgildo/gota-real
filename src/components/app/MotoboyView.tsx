@@ -7,6 +7,7 @@ import { MiniMap } from '@/components/app/MiniMap'
 import { PaymentBadge } from '@/components/app/Badges'
 import { Avatar } from '@/components/app/Avatar'
 import { LogoutButton } from '@/components/app/LoginDialog'
+import { InstallPrompt } from '@/components/app/InstallPrompt'
 import { orderAction, updateCourier } from '@/lib/api'
 import { emitCourierMove, getRealtimeSocket } from '@/lib/realtime-client'
 import {
@@ -63,7 +64,12 @@ export function MotoboyView() {
     return <CourierSelect couriers={couriers} onSelect={setCourierId} isDriver={isDriver} />
   }
 
-  return <MotoboyPanel courierName={auth?.user.name} isDriver={isDriver} />
+  return (
+    <>
+      <MotoboyPanel courierName={auth?.user.name} isDriver={isDriver} />
+      <InstallPrompt placement="floating" />
+    </>
+  )
 }
 
 function CourierSelect({
@@ -76,7 +82,7 @@ function CourierSelect({
   isDriver?: boolean
 }) {
   return (
-    <div className="min-h-dvh gota-gradient px-5 py-8">
+    <div className="min-h-dvh gota-gradient px-5 py-8 pb-36">
       <div className="mx-auto max-w-md">
         <LogoutButton light label="Terminar sessão" />
         <div className="glass-card rounded-3xl p-6 text-white shadow-xl">

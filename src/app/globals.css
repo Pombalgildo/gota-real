@@ -284,3 +284,15 @@
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* Garantia extra: o menu inferior fica SEMPRE fixo ao fundo do ecrã,
+   mesmo que as classes do Tailwind não carreguem em navegadores antigos */
+.app-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: #ffffff;
+  border-top: 2px solid #e2eef7;
+}
