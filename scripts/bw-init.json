@@ -1,0 +1,30 @@
+{
+  "cmd": ["bubblewrap", "init", "--manifest=https://gota-real.vercel.app/manifest.webmanifest", "--directory=android-apk"],
+  "cwd": "/home/z/my-project",
+  "timeout": 900,
+  "log": "/tmp/bw-init.log",
+  "status_file": "/tmp/bw-init.status",
+  "env": {
+    "BUBBLEWRAP_KEYSTORE_PASSWORD": "GotaReal2026",
+    "BUBBLEWRAP_KEY_PASSWORD": "GotaReal2026"
+  },
+  "rules": [
+    {"match": "install the JDK", "send": "y\\n"},
+    {"match": "install the Android SDK", "send": "y\\n"},
+    {"match": "agree to the Android SDK terms", "send": "y\\n"},
+    {"match": "Do you want to create one now", "send": "y\\n"},
+    {"match": "Key store location", "send": "\\n"},
+    {"match": "First and Last names", "send": "Gota Real\\n"},
+    {"match": "Organizational Unit", "send": "Entrega de Agua\\n"},
+    {"match": "Organization \\(eg: Company Name\\)", "send": "Gota REAL\\n"},
+    {"match": "Country \\(2 letter code\\)", "send": "AO\\n"},
+    {"match": "Password for the Key", "send": "GotaReal2026\\n"},
+    {"match": "Request geolocation permission", "send": "y\\n"},
+    {"match": "Application ID", "send": "ao.gotareal.app\\n"},
+    {"match": "versionName for the new App", "send": "0.2.2\\n"},
+    {"match": "version code", "send": "1\\n"},
+    {"match": "Include app shortcuts", "send": "n\\n"},
+    {"match": "Play Billing", "send": "n\\n"}
+  ],
+  "fallback": "\\n"
+}

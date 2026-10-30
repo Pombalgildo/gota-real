@@ -1,0 +1,14 @@
+{
+  "cmd": ["bubblewrap", "doctor"],
+  "cwd": "/home/z/my-project/android-apk",
+  "timeout": 1500,
+  "log": "/tmp/bw-doctor.log",
+  "status_file": "/tmp/bw-doctor.status",
+  "rules": [
+    {"match": "install the JDK", "send": "y\\n"},
+    {"match": "install the Android SDK", "send": "y\\n"},
+    {"match": "password", "send": "GotaReal2026\\n"},
+    {"match": "\\[no\\]:", "send": "y\\n"}
+  ],
+  "fallback": "\\n"
+}

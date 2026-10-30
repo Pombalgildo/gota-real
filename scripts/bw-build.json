@@ -1,0 +1,24 @@
+{
+  "cmd": ["bubblewrap", "build"],
+  "cwd": "/home/z/my-project/android-apk",
+  "timeout": 1500,
+  "log": "/tmp/bw-build.log",
+  "status_file": "/tmp/bw-build.status",
+  "env": {
+    "BUBBLEWRAP_KEYSTORE_PASSWORD": "GotaReal2026",
+    "BUBBLEWRAP_KEY_PASSWORD": "GotaReal2026"
+  },
+  "rules": [
+    {"match": "Accept\\? \\(y/N\\)", "send": "y\\n"},
+    {"match": "apply them to the project before building|Would you like to apply them", "send": "y\\n"},
+    {"match": "install the JDK", "send": "y\\n"},
+    {"match": "install the Android SDK", "send": "y\\n"},
+    {"match": "agree to the Android SDK terms", "send": "y\\n"},
+    {"match": "Password for the Key", "send": "GotaReal2026\\n"},
+    {"match": "versionName for the new App", "send": "0.2.2\\n"},
+    {"match": "version code", "send": "1\\n"},
+    {"match": "Do you want to create one now", "send": "y\\n"},
+    {"match": "\\[no\\]:", "send": "y\\n"}
+  ],
+  "fallback": "\\n"
+}
