@@ -69,16 +69,16 @@ function OrderCard({ order }: { order: Order }) {
     >
       <div className="rounded-2xl border border-border bg-white p-4 shadow-sm transition-all hover:shadow-md">
         <div className="flex items-start justify-between gap-2">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-black text-navy">
               Pedido nº {order.number}
               {active && <span className="live-dot ml-2 align-middle" />}
             </p>
             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3" /> {formatDateTime(order.requestedAt)}
+              <Clock className="h-3 w-3 shrink-0" /> {formatDateTime(order.requestedAt)}
             </p>
           </div>
-          <StatusBadge status={order.status} />
+          <StatusBadge status={order.status} className="shrink-0" />
         </div>
 
         <div className="mt-3 flex items-center gap-2">
@@ -103,9 +103,9 @@ function OrderCard({ order }: { order: Order }) {
           </div>
         </div>
 
-        <div className="mt-2.5 flex items-center justify-between border-t border-border pt-2.5">
-          <PaymentBadge method={order.paymentMethod} />
-          <span className="inline-flex items-center gap-0.5 text-xs font-bold text-primary">
+        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-border pt-2.5">
+          <PaymentBadge method={order.paymentMethod} className="shrink-0" />
+          <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-bold text-primary">
             {active ? 'acompanhar' : 'ver detalhes'}
             <ChevronRight className="h-3.5 w-3.5" />
           </span>

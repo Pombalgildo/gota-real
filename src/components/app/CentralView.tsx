@@ -83,6 +83,11 @@ export function CentralView() {
   const staffName = auth?.user.name ?? 'Equipa'
   const role = auth?.user.role ?? 'ADMIN'
   const isEditor = role === 'EDITOR'
+  // evita "Administrador · Administrador Geral" — se o nome já contém o cargo, mostra só o nome
+  const roleLabel = ROLE_LABEL[role] ?? 'equipa'
+  const headerLine = staffName.toLowerCase().startsWith(roleLabel.toLowerCase())
+    ? staffName
+    : `${roleLabel} · ${staffName}`
 
   return (
     <div className="min-h-dvh bg-background pb-24">
@@ -104,12 +109,12 @@ export function CentralView() {
             }
           />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-[#BDE3F5]">
-              {ROLE_LABEL[role] ?? 'equipa'} · {staffName}
+            <p className="truncate text-[10px] font-black uppercase tracking-wider sm:tracking-[0.2em] text-[#BDE3F5]">
+              {headerLine}
             </p>
             <h1 className="text-lg font-black leading-tight">Central Gota REAL 👑</h1>
           </div>
-          <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
             <span className="live-dot" /> ao vivo
           </span>
           <LogoutButton light label="Sair" />
@@ -205,9 +210,10 @@ function CentralTabs({ role }: { role: string }) {
           <TabsTrigger
             key={t.value}
             value={t.value}
-            className="rounded-lg px-1 text-[10px] font-bold data-[state=active]:bg-white sm:text-xs"
+            className="min-w-0 rounded-lg px-1 text-[10px] font-bold data-[state=active]:bg-white sm:text-xs"
           >
-            <t.icon className="mr-0.5 h-3.5 w-3.5 shrink-0" /> {t.label}
+            <t.icon className="mr-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 truncate">{t.label}</span>
           </TabsTrigger>
         ))}
       </TabsList>
@@ -246,14 +252,14 @@ function OrdersPanel() {
 
   return (
     <div className="space-y-3">
-      {/* filtros */}
-      <div className="custom-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      {/* filtros — passam de linha em vez de ficarem cortados no telemóvel */}
+      <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
             className={cn(
-              'shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all',
+              'rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all',
               filter === f.key
                 ? 'border-primary bg-primary text-white shadow-sm'
                 : 'border-border bg-white text-muted-foreground hover:border-input'
@@ -315,22 +321,28 @@ function CentralOrderCard({ order, onOpen }: { order: Order; onOpen: () => void 
               #{order.number} · {order.customer?.name}
               {order.status === 'pendente' && <span className="live-dot ml-2 align-middle" />}
             </p>
-            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
-              <Phone className="h-3 w-3 shrink-0" /> {order.customer?.phone} · {formatTime(order.requestedAt)}
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span className="min-w-0 truncate">
+                {order.customer?.phone} · {formatTime(order.requestedAt)}
+              </span>
             </p>
           </div>
-          <StatusBadge status={order.status} />
+          <StatusBadge status={order.status} className="shrink-0" />
         </div>
-        <div className="mt-2.5 flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">
+        <div className="mt-2.5 flex items-center justify-between gap-2 text-xs">
+          <span className="min-w-0 truncate text-muted-foreground">
             {order.items.reduce((s, i) => s + i.quantity, 0)} itens · {formatLiters(order.totalLiters)} ·{' '}
             <b className="text-foreground">{formatKz(order.totalKz)}</b>
           </span>
-          <PaymentBadge method={order.paymentMethod} />
+          <PaymentBadge method={order.paymentMethod} className="shrink-0" />
         </div>
         {order.courier && (
           <p className="mt-2 flex items-center gap-1 rounded-lg bg-gold/15 px-2 py-1 text-[11px] font-bold text-[#6B5410]">
-            <Bike className="h-3 w-3" /> {order.courier.name} · {order.courier.vehicle}
+            <Bike className="h-3 w-3 shrink-0" />
+            <span className="min-w-0 truncate">
+              {order.courier.name} · {order.courier.vehicle}
+            </span>
           </p>
         )}
       </button>
@@ -375,18 +387,18 @@ function CentralOrderCard({ order, onOpen }: { order: Order; onOpen: () => void 
                 disabled={busy}
                 className="flex w-full items-center gap-3 rounded-xl border-2 border-border bg-white p-3 text-left transition-all hover:border-primary hover:bg-secondary/40"
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl gota-gradient text-white">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl gota-gradient text-white">
                   <Bike className="h-5 w-5" />
                 </span>
-                <span className="flex-1">
-                  <span className="block text-sm font-black text-navy">{c.name}</span>
-                  <span className="block text-xs text-muted-foreground">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-black text-navy">{c.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
                     {c.vehicle} · {c.plate}
                   </span>
                 </span>
                 <span
                   className={cn(
-                    'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                    'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold',
                     c.available
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                       : 'border-amber-200 bg-amber-50 text-amber-700'
@@ -418,7 +430,7 @@ function CentralOrderDetail({ order, onBack }: { order: Order; onBack: () => voi
               {formatDateTime(order.requestedAt)} · {order.customer?.phone}
             </p>
           </div>
-          <StatusBadge status={order.status} />
+          <StatusBadge status={order.status} className="shrink-0" />
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -527,10 +539,10 @@ function FeedbackPanel() {
       {feedbacks.map((f) => (
         <div key={f.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
               <span
                 className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-xl',
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
                   f.type === 'sugestao' ? 'bg-secondary text-primary' : 'bg-red-100 text-red-600'
                 )}
               >
@@ -547,7 +559,7 @@ function FeedbackPanel() {
             <Badge
               variant="outline"
               className={cn(
-                'text-[10px]',
+                'shrink-0 text-[10px]',
                 f.status === 'respondido'
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                   : 'border-amber-200 bg-amber-50 text-amber-700'
@@ -1166,10 +1178,10 @@ function UserRow({
           }
         />
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 truncate text-sm font-black text-navy">
-            {user.name}
+          <p className="flex items-center gap-1.5 text-sm font-black text-navy">
+            <span className="min-w-0 truncate">{user.name}</span>
             {isSelf && (
-              <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[9px] font-black text-primary">
+              <span className="shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[9px] font-black text-primary">
                 eu
               </span>
             )}

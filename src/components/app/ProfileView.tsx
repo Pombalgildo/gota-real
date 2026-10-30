@@ -191,11 +191,12 @@ export function ProfileView() {
               <>
                 <p className="truncate text-base font-black text-navy">{customer.name}</p>
                 <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                  <Phone className="h-3 w-3" /> {customer.phone}
+                  <Phone className="h-3 w-3 shrink-0" /> {customer.phone}
                 </p>
                 {customer.email && (
-                  <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
-                    <Mail className="h-3 w-3" /> {customer.email}
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                    <Mail className="h-3 w-3 shrink-0" />
+                    <span className="min-w-0 truncate">{customer.email}</span>
                   </p>
                 )}
                 <p className="mt-0.5 text-[10px] text-muted-foreground">

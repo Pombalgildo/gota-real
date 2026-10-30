@@ -148,7 +148,7 @@ function MotoboyPanel({ courierName, isDriver }: { courierName?: string; isDrive
               {courierName ?? courier?.name ?? (isDriver ? 'Motorista' : 'Motoboy')}
             </h1>
           </div>
-          <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
             <span className="live-dot" /> ao vivo
           </span>
           <LogoutButton light label="Sair" />
@@ -360,7 +360,7 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
             <MapPin className="h-3 w-3 shrink-0" /> <span className="min-w-0 break-words">{order.address || 'localização GPS'}</span>
           </p>
         </div>
-        <PaymentBadge method={order.paymentMethod} />
+        <PaymentBadge method={order.paymentMethod} className="shrink-0" />
       </div>
 
       {/* itens + pagamento a receber */}
