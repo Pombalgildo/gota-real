@@ -13,7 +13,7 @@ import { ProfileView } from '@/components/app/ProfileView'
 import { CentralView } from '@/components/app/CentralView'
 import { MotoboyView } from '@/components/app/MotoboyView'
 import { CheckoutSheet } from '@/components/app/CheckoutSheet'
-import { InstallPrompt } from '@/components/app/InstallPrompt'
+import { InstallPrompt, InstallPromptSpacer } from '@/components/app/InstallPrompt'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { BrandLogo } from '@/components/app/Brand'
 import { Avatar } from '@/components/app/Avatar'
@@ -68,13 +68,7 @@ export function GotaRealApp() {
   if ((CENTRAL_ROLES as string[]).includes(role ?? '')) return <CentralView />
   if ((DELIVERY_ROLES as string[]).includes(role ?? '')) return <MotoboyView />
 
-  if (!customer)
-    return (
-      <>
-        <OnboardingView />
-        <InstallPrompt placement="floating" />
-      </>
-    )
+  if (!customer) return <OnboardingView />
 
   return <CustomerApp />
 }
@@ -202,6 +196,9 @@ function CustomerApp() {
         {tab === 'pedidos' && <OrdersView />}
         {tab === 'feedback' && <FeedbackView />}
         {tab === 'perfil' && <ProfileView />}
+        {/* reserva a altura do banner de instalação para que o último
+            cartão nunca fique tapado por ele (encolhe se for fechado) */}
+        <InstallPromptSpacer className="h-28" />
       </main>
 
       {/* navegação inferior — botões grandes */}

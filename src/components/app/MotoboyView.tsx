@@ -7,7 +7,7 @@ import { MiniMap } from '@/components/app/MiniMap'
 import { PaymentBadge } from '@/components/app/Badges'
 import { Avatar } from '@/components/app/Avatar'
 import { LogoutButton } from '@/components/app/LoginDialog'
-import { InstallPrompt } from '@/components/app/InstallPrompt'
+import { InstallPrompt, InstallPromptSpacer } from '@/components/app/InstallPrompt'
 import { orderAction, updateCourier } from '@/lib/api'
 import { emitCourierMove, getRealtimeSocket } from '@/lib/realtime-client'
 import {
@@ -215,6 +215,10 @@ function MotoboyPanel({ courierName, isDriver }: { courierName?: string; isDrive
             )}
           </>
         )}
+
+        {/* reserva a altura do banner de instalação fixo para que a
+            última entrega nunca fique tapada por ele */}
+        <InstallPromptSpacer className="h-28" />
       </div>
     </div>
   )

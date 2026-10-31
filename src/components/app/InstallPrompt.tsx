@@ -30,7 +30,12 @@ interface BeforeInstallPromptEvent extends Event {
 
 const DISMISS_KEY = 'gota-install-dismissed-at'
 const DISMISS_DAYS = 7
+const DISMISS_EVENT = 'gota-install-dismissed'
 let swRegistered = false
+
+/** evento de instalação adiado, partilhado por todas as instâncias
+ *  (assim o banner e o espaçador ficam sempre de acordo) */
+let sharedDeferred: BeforeInstallPromptEvent | null = null
 
 /** true se o utilizador dispensou o aviso há menos de DISMISS_DAYS dias */
 function recentlyDismissed(): boolean {
@@ -44,7 +49,7 @@ function recentlyDismissed(): boolean {
 }
 
 export function usePwaInstall() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(sharedDeferred)
   const [installed, setInstalled] = useState(false)
   const [isIos, setIsIos] = useState(false)
 
@@ -66,9 +71,11 @@ export function usePwaInstall() {
 
     const onBeforeInstall = (e: Event) => {
       e.preventDefault() // impede o mini-banner do Chrome; mostramos o nosso
-      setDeferred(e as BeforeInstallPromptEvent)
+      sharedDeferred = e as BeforeInstallPromptEvent
+      setDeferred(sharedDeferred)
     }
     const onInstalled = () => {
+      sharedDeferred = null
       setInstalled(true)
       setDeferred(null)
     }
@@ -86,6 +93,7 @@ export function usePwaInstall() {
     await deferred.prompt()
     const choice = await deferred.userChoice
     if (choice.outcome === 'accepted') setInstalled(true)
+    sharedDeferred = null
     setDeferred(null)
     return choice.outcome
   }, [deferred])
@@ -93,16 +101,47 @@ export function usePwaInstall() {
   return { canInstall: deferred !== null, install, installed, isIos }
 }
 
-/* ============================================================
-   BANNER FIXO — aparece por cima do rodapé
-   ============================================================ */
-export function InstallPrompt({ placement = 'floating' }: { placement?: 'above-nav' | 'floating' }) {
-  const { canInstall, install, installed, isIos } = usePwaInstall()
-  const [dismissed, setDismissed] = useState(true) // só decide depois de montar
+/** visibilidade partilhada do aviso de instalação (banner + espaçador) */
+export function useInstallVisible() {
+  const { canInstall, installed, isIos } = usePwaInstall()
+  const [dismissed, setDismissed] = useState(true)
 
   useEffect(() => {
     setDismissed(recentlyDismissed())
+    const onDismiss = () => setDismissed(true)
+    window.addEventListener(DISMISS_EVENT, onDismiss)
+    return () => window.removeEventListener(DISMISS_EVENT, onDismiss)
   }, [])
+
+  return !installed && !dismissed && (canInstall || isIos)
+}
+
+/** fecha o aviso de instalação (usado pelo banner e pela faixa das boas-vindas) */
+export function dismissInstallPrompt() {
+  try {
+    localStorage.setItem(DISMISS_KEY, String(Date.now()))
+  } catch {
+    /* sem localStorage, apenas esconde */
+  }
+  // avisa todas as instâncias (banner, espaçador, faixa) para encolherem
+  window.dispatchEvent(new Event(DISMISS_EVENT))
+}
+
+/* ============================================================
+   BANNER DE INSTALAÇÃO
+   - 'above-nav': fixo por cima do menu inferior (cliente com sessão)
+   - 'floating' : fixo no fundo do ecrã (painéis da equipa)
+   - 'inline'   : dentro do fluxo da página (boas-vindas) — nunca
+                  tapa nada, porque empurra o conteúdo em vez de
+                  se sobrepor
+   ============================================================ */
+export function InstallPrompt({
+  placement = 'floating',
+}: {
+  placement?: 'above-nav' | 'floating' | 'inline'
+}) {
+  const { canInstall, install, isIos } = usePwaInstall()
+  const visible = useInstallVisible()
 
   // registo do service worker (uma única vez) — acelera a app
   // e é pré-requisito de instalação em versões mais antigas do Chrome
@@ -117,28 +156,29 @@ export function InstallPrompt({ placement = 'floating' }: { placement?: 'above-n
   }, [])
 
   function dismiss() {
-    try {
-      localStorage.setItem(DISMISS_KEY, String(Date.now()))
-    } catch {
-      /* sem localStorage, apenas esconde */
-    }
-    setDismissed(true)
+    dismissInstallPrompt()
   }
 
-  if (installed || dismissed) return null
-  // Android sem suporte (ex.: Firefox) → não há diálogo possível, não mostrar
-  if (!canInstall && !isIos) return null
+  if (!visible) return null
 
   return (
     <div
       className={cn(
-        'fixed z-50 px-3',
-        placement === 'above-nav' ? 'inset-x-0 bottom-20' : 'inset-x-0 bottom-4'
+        placement === 'inline'
+          ? 'w-full'
+          : 'fixed z-50 px-3',
+        placement === 'above-nav' && 'inset-x-0 bottom-20',
+        placement === 'floating' && 'inset-x-0 bottom-4'
       )}
       role="dialog"
       aria-label="Instalar a aplicação"
     >
-      <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border border-border bg-white/97 p-3 shadow-2xl ring-1 ring-black/5 backdrop-blur-md">
+      <div
+        className={cn(
+          'mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border border-border bg-white/97 p-3 shadow-2xl ring-1 ring-black/5 backdrop-blur-md',
+          placement === 'inline' && 'my-1'
+        )}
+      >
         <BrandLogo size={38} className="shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-black leading-tight text-navy">
@@ -175,6 +215,67 @@ export function InstallPrompt({ placement = 'floating' }: { placement?: 'above-n
           <X className="h-4 w-4" />
         </button>
       </div>
+    </div>
+  )
+}
+
+/* ============================================================
+   ESPAÇADOR — reserva a altura do banner dentro do fluxo da
+   página, para que o conteúdo fixo do fundo nunca fique tapado.
+   Aparece e desaparece em sincronia com o banner (mesmo aviso
+   de fecho) e não ocupa espaço quando o banner não está visível.
+   ============================================================ */
+export function InstallPromptSpacer({ className = 'h-24' }: { className?: string }) {
+  const visible = useInstallVisible()
+  if (!visible) return null
+  return <div aria-hidden className={className} />
+}
+
+/* ============================================================
+   FAIXA COMPACTA — vive DENTRO do cartão de boas-vindas
+   (fundo azul). Aparece na primeira dobra e, por fazer parte do
+   fluxo da página, nunca tapa nem é tapada por nenhum botão,
+   em nenhum tamanho de ecrã.
+   ============================================================ */
+export function InstallStripWelcome() {
+  const { canInstall, install, isIos } = usePwaInstall()
+  const visible = useInstallVisible()
+  if (!visible) return null
+
+  return (
+    <div className="mt-4 flex items-center gap-3 rounded-xl bg-white/12 p-2.5 ring-1 ring-white/20">
+      <BrandLogo size={32} className="shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] font-black leading-tight text-white">
+          Instalar a app Gota REAL
+        </p>
+        <p className="mt-0.5 text-[10px] leading-snug text-[#cfe7f8]">
+          {isIos ? (
+            <>
+              <b className="font-bold text-white">Partilhar</b> →{' '}
+              <b className="font-bold text-white">Adicionar ao Ecrã Principal</b>
+            </>
+          ) : (
+            '1 toque no ecrã, sem barra de navegador'
+          )}
+        </p>
+      </div>
+      {canInstall && (
+        <button
+          onClick={() => void install()}
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-gold px-3.5 text-[11px] font-black text-[#3A2A05] shadow-md transition-all hover:brightness-105 active:scale-95"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Instalar
+        </button>
+      )}
+      <button
+        onClick={dismissInstallPrompt}
+        aria-label="Fechar aviso de instalação"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/15 hover:text-white"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   )
 }

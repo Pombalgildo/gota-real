@@ -151,10 +151,10 @@ function FeedbackCard({ feedback }: { feedback: Feedback }) {
   return (
     <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg',
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
               feedback.type === 'sugestao'
                 ? 'bg-secondary text-primary'
                 : 'bg-red-100 text-red-600'
@@ -166,8 +166,8 @@ function FeedbackCard({ feedback }: { feedback: Feedback }) {
               <MessageSquareWarning className="h-4 w-4" />
             )}
           </span>
-          <div>
-            <p className="text-sm font-bold leading-tight text-navy">{feedback.subject}</p>
+          <div className="min-w-0">
+            <p className="break-words text-sm font-bold leading-tight text-navy">{feedback.subject}</p>
             <p className="text-[11px] text-muted-foreground">
               {formatDateTime(feedback.createdAt)}
             </p>

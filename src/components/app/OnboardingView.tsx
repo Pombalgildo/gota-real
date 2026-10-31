@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { BrandLogo, BrandWordmark } from '@/components/app/Brand'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { LoginDialog } from '@/components/app/LoginDialog'
+import { InstallStripWelcome } from '@/components/app/InstallPrompt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -94,12 +95,15 @@ export function OnboardingView() {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-hidden gota-gradient">
-      {/* decorações */}
-      <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-[#37b6f5]/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-[#d9a62e]/15 blur-3xl" />
+    <div className="relative min-h-dvh gota-gradient">
+      {/* decorações — numa camada própria com clip, para não criarem um
+          scroll-container que desactive o "sticky" dos botões de fundo */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-[#37b6f5]/20 blur-3xl" />
+        <div className="absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-[#d9a62e]/15 blur-3xl" />
+      </div>
 
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8 pb-36">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8 pb-10">
         {/* topo com logo (fundo branco, texto centrado por baixo) */}
         <div className="flex flex-col items-center pt-6">
           <BrandLogo size={92} className="ring-4 ring-white/60" />
@@ -129,9 +133,13 @@ export function OnboardingView() {
                     📍 Luanda
                   </span>
                 </div>
+
+                {/* aviso de instalação integrado no cartão: aparece já na
+                    primeira dobra, sem se sobrepor a nada em nenhum ecrã */}
+                <InstallStripWelcome />
               </div>
 
-              {/* detalhes do serviço ficam no "Quem Somos", dentro do perfil do cliente */}
+              {/* detalhes do serviço ficam no "Quem Somos", no perfil do cliente */}
             </div>
           )}
 

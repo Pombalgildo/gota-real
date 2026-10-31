@@ -304,28 +304,28 @@ export function ProfileView() {
           )}
           <div className="mt-2.5 space-y-1.5 text-xs text-foreground">
             {store.phone && (
-              <p className="flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5 text-primary" /> {store.phone}
+              <p className="flex min-w-0 items-start gap-1.5 break-words">
+                <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> {store.phone}
               </p>
             )}
             {store.whatsapp && (
-              <p className="flex items-center gap-1.5">
-                <Bike className="h-3.5 w-3.5 text-primary" /> WhatsApp: {store.whatsapp}
+              <p className="flex min-w-0 items-start gap-1.5 break-words">
+                <Bike className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> WhatsApp: {store.whatsapp}
               </p>
             )}
             {store.address && (
-              <p className="flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5 text-primary" /> {store.address}
+              <p className="flex min-w-0 items-start gap-1.5 break-words">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> {store.address}
               </p>
             )}
             {store.hours && (
-              <p className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-primary" /> {store.hours}
+              <p className="flex min-w-0 items-start gap-1.5 break-words">
+                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> {store.hours}
               </p>
             )}
             {store.deliveryFeeKz > 0 && (
-              <p className="flex items-center gap-1.5">
-                <Bike className="h-3.5 w-3.5 text-primary" /> Taxa de entrega:{' '}
+              <p className="flex min-w-0 items-start gap-1.5 break-words">
+                <Bike className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> Taxa de entrega:{' '}
                 {store.deliveryFeeKz.toLocaleString('pt-AO')} Kz
               </p>
             )}

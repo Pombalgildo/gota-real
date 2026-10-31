@@ -7,9 +7,12 @@ import { cn } from '@/lib/utils'
  * (azuis do logo + detalhes dourados da coroa).
  */
 
-function CrownTiny({ x, y }: { x: number; y: number }) {
+function CrownTiny({ x, y, centered = false }: { x: number; y: number; centered?: boolean }) {
+  // 'centered' recebe o ponto CENTRAL onde a coroa deve ficar
+  // (a coroa mede ~9,3 unidades de largura à escala 0,42)
+  const tx = centered ? x - 4.65 : x
   return (
-    <g transform={`translate(${x},${y}) scale(0.42)`}>
+    <g transform={`translate(${tx},${y}) scale(0.42)`}>
       <path
         d="M2 10l4 4 6-8 6 8 4-4 1 10H1l1-10z"
         fill="#D9A62E"
@@ -41,11 +44,10 @@ function BidonArt({ className }: { className?: string }) {
       <rect x="46" y="16" width="20" height="8" rx="3.5" fill="#D9A62E" stroke="#B8871F" strokeWidth="1.4" />
       {/* brilho */}
       <rect x="38" y="44" width="9" height="52" rx="4.5" fill="#fff" opacity="0.45" />
-      {/* rótulo */}
+      {/* rótulo: coroa ao centro + volume por baixo — tudo dentro da etiqueta */}
       <rect x="40" y="62" width="32" height="22" rx="5" fill="#fff" opacity="0.92" />
-      <CrownTiny x={46} y={63} />
-      <text x="74" y="78" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="13" fontWeight="900" fill="#0A3D7C">5L</text>
-      <path d="M50 84q3-3 5 0t5 0t5 0" stroke="#0E63B8" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      <CrownTiny x={56} y={63.5} centered />
+      <text x="56" y="80.5" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="900" fill="#0A3D7C">5L</text>
     </svg>
   )
 }
@@ -73,10 +75,10 @@ function GarrafaoArt({ className, big }: { className?: string; big?: boolean }) 
       {/* água interna */}
       <path d="M34 62h52v26c0 8-6 14-14 14H48c-8 0-14-6-14-14V62z" fill="#5BB6EA" opacity="0.8" />
       <rect x="40" y="42" width="10" height="52" rx="5" fill="#fff" opacity="0.4" />
-      {/* rótulo */}
+      {/* rótulo: coroa ao centro + volume por baixo — tudo dentro da etiqueta */}
       <rect x="40" y="66" width="40" height="20" rx="5" fill="#fff" opacity="0.95" />
-      <CrownTiny x={47} y={67} />
-      <text x="76" y="81" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="12" fontWeight="900" fill="#0A3D7C">
+      <CrownTiny x={60} y={66.5} centered />
+      <text x="60" y="83.5" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="10.5" fontWeight="900" fill="#0A3D7C">
         {big ? '20L' : '10L'}
       </text>
     </svg>
@@ -103,10 +105,10 @@ function GarrafaArt({ className, small }: { className?: string; small?: boolean 
         strokeWidth="2.4"
       />
       <rect x="46" y="52" width="8" height="40" rx="4" fill="#fff" opacity="0.45" />
-      {/* rótulo */}
+      {/* rótulo: coroa ao centro + volume por baixo — tudo dentro da etiqueta */}
       <rect x="44" y="62" width="32" height="20" rx="4.5" fill="#fff" opacity="0.95" />
-      <CrownTiny x={49} y={63} />
-      <text x="72" y="77" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="10" fontWeight="900" fill="#0A3D7C">
+      <CrownTiny x={60} y={63} centered />
+      <text x="60" y="78.5" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="9" fontWeight="900" fill="#0A3D7C">
         {small ? '0,5L' : '1,5L'}
       </text>
     </svg>
@@ -133,10 +135,10 @@ function PackArt({ className }: { className?: string }) {
           <rect x={x - 7} y="40" width="14" height="40" rx="6" fill="#8FD8F7" stroke="#0A3D7C" strokeWidth="1.6" />
         </g>
       ))}
-      {/* rótulo da embalagem */}
+      {/* rótulo da embalagem: coroa ao centro + volume por baixo */}
       <rect x="40" y="72" width="40" height="22" rx="5" fill="#fff" opacity="0.95" />
-      <CrownTiny x={47} y={74} />
-      <text x="76" y="88" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="10" fontWeight="900" fill="#0A3D7C">6x1,5L</text>
+      <CrownTiny x={60} y={73.5} centered />
+      <text x="60" y="90" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="9" fontWeight="900" fill="#0A3D7C">6x1,5L</text>
     </svg>
   )
 }
