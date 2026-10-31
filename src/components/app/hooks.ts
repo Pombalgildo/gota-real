@@ -132,6 +132,7 @@ export function useCustomerOrders(customerId: string | null | undefined) {
 export function useAllOrders() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   // token da equipa — necessário para ver todos os pedidos
   const token = useAppStore((s) => s.auth?.token ?? null)
 
@@ -139,8 +140,15 @@ export function useAllOrders() {
     try {
       const { orders } = await fetchAllOrders(token)
       setOrders(orders)
-    } catch {
-      // silencioso
+      setError(null)
+    } catch (err) {
+      // antes o erro era engolido em silêncio e a central ficava “vazia”;
+      // agora o painel avisa e oferece tentar novamente
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Sem ligação ao servidor. Verifique a internet.'
+      )
     } finally {
       setLoading(false)
     }
@@ -174,7 +182,7 @@ export function useAllOrders() {
   // reserva: a CENTRAL recebe pedidos novos em até 6s sem sockets
   usePollingFallback(reload, 6_000)
 
-  return { orders, loading, reload }
+  return { orders, loading, error, reload }
 }
 
 export function useCouriers() {

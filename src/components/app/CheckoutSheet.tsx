@@ -82,9 +82,18 @@ export function CheckoutSheet() {
         description: 'A central vai confirmar e enviar o seu motoboy.',
       })
     } catch (err) {
+      // erro de rede (sem internet / servidor acordando): mensagem clara
+      // e o carrinho mantém-se — basta tentar novamente
+      const isNetwork =
+        err instanceof TypeError ||
+        /fetch|network|networkerror|failed to/i.test(err instanceof Error ? err.message : '')
       toast({
         title: 'Não foi possível enviar o pedido',
-        description: err instanceof Error ? err.message : 'Tente novamente.',
+        description: isNetwork
+          ? 'Sem ligação ao servidor. Verifique a internet e toque novamente — o seu pedido fica guardado no carrinho.'
+          : err instanceof Error
+            ? err.message
+            : 'Tente novamente.',
         variant: 'destructive',
       })
     } finally {

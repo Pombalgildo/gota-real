@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, withDbRetry } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
 import { listOrders, nextOrderNumber } from '@/lib/orders'
 import { ORDER_MANAGER_ROLES, DELIVERY_ROLES, requireRole } from '@/lib/auth'
@@ -76,39 +76,44 @@ export async function POST(req: NextRequest) {
 
     const number = await nextOrderNumber()
 
-    const order = await db.$transaction(async (tx) => {
-      for (const item of itemData) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
-        })
-      }
-      return tx.order.create({
-        data: {
-          number,
-          customerId,
-          items: { create: itemData },
-          totalKz,
-          totalLiters,
-          paymentMethod,
-          notes: notes ?? null,
-          address: address ?? customer.address,
-          latitude: latitude ?? customer.latitude,
-          longitude: longitude ?? customer.longitude,
-          status: 'pendente',
-        },
-        include: {
-          items: true,
-          customer: {
-            select: {
-              id: true, name: true, phone: true, email: true,
-              address: true, latitude: true, longitude: true, locationSource: true,
-            },
+    // A criação do pedido repete automaticamente quando a base de dados
+    // está a acordar (Neon cold start) — sem isto, o pedido do cliente
+    // perdia-se com um erro 500 e a central nunca o via.
+    const order = await withDbRetry(() =>
+      db.$transaction(async (tx) => {
+        for (const item of itemData) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.quantity } },
+          })
+        }
+        return tx.order.create({
+          data: {
+            number,
+            customerId,
+            items: { create: itemData },
+            totalKz,
+            totalLiters,
+            paymentMethod,
+            notes: notes ?? null,
+            address: address ?? customer.address,
+            latitude: latitude ?? customer.latitude,
+            longitude: longitude ?? customer.longitude,
+            status: 'pendente',
           },
-          courier: true,
-        },
+          include: {
+            items: true,
+            customer: {
+              select: {
+                id: true, name: true, phone: true, email: true,
+                address: true, latitude: true, longitude: true, locationSource: true,
+              },
+            },
+            courier: true,
+          },
+        })
       })
-    })
+    )
 
     await emitRealtime('order:new', { order })
 

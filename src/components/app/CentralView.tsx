@@ -67,6 +67,8 @@ import {
   UserCog,
   Users,
   Warehouse,
+  WifiOff,
+  RefreshCw,
   XCircle,
 } from 'lucide-react'
 
@@ -125,9 +127,10 @@ export function CentralView() {
       <div className="mx-auto -mt-11 max-w-5xl space-y-5 px-4">
         <CentralStats role={role} />
         <CentralTabs role={role} />
+        {/* aviso de instalação no fluxo da página (não flutua): nunca
+            tapa os pedidos, filtros nem botões da central */}
+        <InstallPrompt placement="inline" />
       </div>
-
-      <InstallPrompt placement="floating" />
     </div>
   )
 }
@@ -242,7 +245,7 @@ function CentralTabs({ role }: { role: string }) {
 
 // ---------------- Pedidos ----------------
 function OrdersPanel() {
-  const { orders, loading } = useAllOrders()
+  const { orders, loading, error, reload } = useAllOrders()
   const [filter, setFilter] = useState('todos')
   const [detail, setDetail] = useState<Order | null>(null)
 
@@ -275,6 +278,19 @@ function OrdersPanel() {
 
       {loading ? (
         <p className="py-8 text-center text-sm text-muted-foreground">a carregar pedidos…</p>
+      ) : error && orders.length === 0 ? (
+        /* falha de ligação: antes mostrava “Sem pedidos” em silêncio e
+           parecia que os pedidos dos clientes não tinham sido registados */
+        <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-red-300 bg-red-50/70 py-10 text-center">
+          <WifiOff className="h-8 w-8 text-red-400" />
+          <p className="mt-2 text-sm font-black text-red-700">
+            Não foi possível carregar os pedidos
+          </p>
+          <p className="mt-1 max-w-xs break-words px-4 text-xs leading-snug text-red-600">{error}</p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={() => reload()}>
+            <RefreshCw className="h-4 w-4" /> Tentar novamente
+          </Button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-input bg-white/60 py-12 text-muted-foreground">
           <ClipboardList className="h-8 w-8 opacity-40" />

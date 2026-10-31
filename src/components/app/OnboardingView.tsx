@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BrandLogo, BrandWordmark } from '@/components/app/Brand'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { LoginDialog } from '@/components/app/LoginDialog'
@@ -34,6 +34,19 @@ export function OnboardingView() {
   const [locationMode, setLocationMode] = useState<'exata' | 'auto'>('exata')
   const [submitting, setSubmitting] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
+
+  // Ao entrar no passo de localização, traz os botões de captura de GPS
+  // para a zona visível (acima da barra fixa). Sem isto, os botões ficam
+  // por baixo da barra e o cliente não consegue concluir o cadastro.
+  useEffect(() => {
+    if (step !== 'localizacao') return
+    const t = setTimeout(() => {
+      document
+        .getElementById('loc-capture-buttons')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 200)
+    return () => clearTimeout(t)
+  }, [step])
 
   async function handleRegister() {
     if (!name.trim() || !phone.trim()) {
@@ -84,9 +97,16 @@ export function OnboardingView() {
           : 'A sua conta foi criada. A senha inicial é o seu número de telefone.',
       })
     } catch (err) {
+      const isNetwork =
+        err instanceof TypeError ||
+        /fetch|network|networkerror|failed to/i.test(err instanceof Error ? err.message : '')
       toast({
         title: 'Erro no cadastro',
-        description: err instanceof Error ? err.message : 'Tente novamente.',
+        description: isNetwork
+          ? 'Sem ligação ao servidor. Verifique a internet e toque em “Concluir cadastro” novamente.'
+          : err instanceof Error
+            ? err.message
+            : 'Tente novamente.',
         variant: 'destructive',
       })
     } finally {
@@ -213,6 +233,7 @@ export function OnboardingView() {
               </div>
 
               <LocationPicker
+                compact
                 value={location}
                 onChange={setLocation}
                 hint="Importante: a posição do GPS é usada pelo motoboy para o encontrar. Quanto mais exacta, mais rápida a entrega."
@@ -258,8 +279,11 @@ export function OnboardingView() {
           )}
         </div>
 
-        {/* navegação inferior */}
-        <div className="sticky bottom-0 mt-6 space-y-3 pb-2">
+        {/* navegação inferior — barra opaca (fundo azul + blur):
+            o conteúdo do formulário passa por BAIXO dela de forma visível.
+            Antes era transparente e os botões de localização ficavam
+            “tapados” sem o cliente perceber — impossibilitando o cadastro. */}
+        <div className="sticky bottom-0 z-20 -mx-5 mt-6 bg-[#072a55]/92 px-5 pb-2 pt-3 shadow-[0_-10px_28px_rgba(7,42,85,0.45)] backdrop-blur-md safe-bottom">
           {step === 'boas-vindas' && (
             <>
               <Button

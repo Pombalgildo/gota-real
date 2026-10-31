@@ -122,8 +122,9 @@ export function LocationPicker({ value, onChange, hint, compact }: LocationPicke
         />
       </div>
 
-      {/* acções */}
-      <div className={cn('grid gap-2', compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
+      {/* acções — id usado pelo registo para as trazer para a zona
+          visível (acima da barra fixa) quando o passo de localização abre */}
+      <div id="loc-capture-buttons" className={cn('grid gap-2 scroll-mt-24', compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
         <Button
           type="button"
           onClick={captureGPS}
