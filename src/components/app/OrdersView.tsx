@@ -392,8 +392,9 @@ function ReorderButton({ order }: { order: Order }) {
 /* ou reclama à administração que não recebeu, com aviso imediato.     */
 /* ------------------------------------------------------------------ */
 function ReceiptCard({ order, onUpdated }: { order: Order; onUpdated?: () => void }) {
-  const { customer } = useAppStore()
+  const { customer, auth } = useAppStore()
   const { toast } = useToast()
+  const token = auth?.token ?? null
   const [busy, setBusy] = useState(false)
   const [disputeOpen, setDisputeOpen] = useState(false)
   const [reason, setReason] = useState('')
@@ -402,7 +403,7 @@ function ReceiptCard({ order, onUpdated }: { order: Order; onUpdated?: () => voi
     if (!customer) return
     setBusy(true)
     try {
-      await confirmReceipt(order.id, customer.id)
+      await confirmReceipt(order.id, token)
       toast({ title: 'Recepção confirmada ✅', description: 'Obrigado! A central foi avisada.' })
       onUpdated?.()
     } catch (err) {
@@ -420,7 +421,7 @@ function ReceiptCard({ order, onUpdated }: { order: Order; onUpdated?: () => voi
     if (!customer) return
     setBusy(true)
     try {
-      await disputeReceipt(order.id, customer.id, reason.trim() || undefined)
+      await disputeReceipt(order.id, token, reason.trim() || undefined)
       setDisputeOpen(false)
       setReason('')
       toast({

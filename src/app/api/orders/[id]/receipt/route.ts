@@ -17,8 +17,8 @@ import { getUserFromRequest, ORDER_MANAGER_ROLES } from '@/lib/auth'
  *   PATCH { action: "resolve", resolution }  → a administração responde
  *         à reclamação e fecha o caso (só ADMIN/ATENDENTE)
  *
- * O cliente autentica-se pelo token da sessão (perfil CLIENTE) ou, como
- * no resto da app, pela posse do pedido (customerId igual ao do pedido).
+ * O cliente autentica-se pelo TOKEN DA SESSÃO do próprio perfil CLIENTE —
+ * sem sessão válida não há confirmação (contas eliminadas não contam).
  */
 export async function POST(
   req: NextRequest,
@@ -36,19 +36,18 @@ export async function POST(
       )
     }
 
-    // quem é o cliente? token de sessão (se houver) ou customerId do corpo
-    let customerId: string | null = typeof body?.customerId === 'string' ? body.customerId : null
-    try {
-      const user = await getUserFromRequest(req)
-      if (user && user.role === 'CLIENTE' && user.customerId) {
-        customerId = user.customerId
-      }
-    } catch {
-      // sem sessão — segue com o customerId do corpo
+    // quem confirma tem de ser o PRÓPRIO cliente, com sessão válida
+    const user = await getUserFromRequest(req)
+    if (!user || user.role !== 'CLIENTE' || !user.customerId || !user.active) {
+      return NextResponse.json(
+        {
+          error:
+            'A sua sessão terminou. Saia da conta e entre novamente com o seu telefone e senha para confirmar a recepção.',
+        },
+        { status: 401 }
+      )
     }
-    if (!customerId) {
-      return NextResponse.json({ error: 'Identifique-se para confirmar a recepção.' }, { status: 401 })
-    }
+    const customerId = user.customerId
 
     const order = await db.order.findUnique({ where: { id }, include: { items: true } })
     if (!order) {

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ensureSeed } from '@/lib/seed'
-import { hashPassword, fallbackEmail } from '@/lib/auth'
+import { verifyPassword, createSession, hashPassword, fallbackEmail, publicUser } from '@/lib/auth'
 
-// POST /api/customers - registar novo cliente (cria também o PERFIL DE LOGIN)
+// POST /api/customers - registar novo cliente (cria também o PERFIL DE LOGIN
+// e devolve a SESSÃO já aberta — o cliente entra na app sem passar pela
+// entrada manual).
 export async function POST(req: NextRequest) {
   try {
     await ensureSeed()
@@ -59,13 +61,33 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // cria o perfil de entrada (login) do cliente, se ainda não existir
+    // perfil de entrada (login) do cliente:
+    // - ainda não existe (conta nova ou conta eliminada antes) → cria e
+    //   abre já a sessão
+    // - já existe → só avança quem souber a SENHA dessa conta (evita que
+    //   alguém assuma a conta de outra pessoa ao “registar-se” com o
+    //   telefone dela)
     const existingUser = await db.user.findUnique({ where: { customerId: customer.id } })
-    if (!existingUser) {
+    let user = existingUser
+    let token: string | null = null
+
+    if (existingUser) {
+      const pass = String(password ?? '') || normalizedPhone
+      if (!verifyPassword(pass, existingUser.password)) {
+        return NextResponse.json(
+          {
+            error:
+              'Já existe uma conta com este telefone. Toque em «Já tenho conta — Entrar» e use a sua senha.',
+          },
+          { status: 409 }
+        )
+      }
+      token = await createSession(existingUser.id)
+    } else {
       const loginEmail =
         (typeof email === 'string' && email.trim()) || fallbackEmail(normalizedPhone)
       try {
-        await db.user.create({
+        user = await db.user.create({
           data: {
             name: customer.name,
             email: loginEmail.toLowerCase(),
@@ -78,7 +100,7 @@ export async function POST(req: NextRequest) {
         })
       } catch {
         // e-mail já usado por outro perfil — usa o e-mail interno do telefone
-        await db.user.create({
+        user = await db.user.create({
           data: {
             name: customer.name,
             email: fallbackEmail(normalizedPhone),
@@ -89,30 +111,21 @@ export async function POST(req: NextRequest) {
           },
         })
       }
+      token = await createSession(user.id)
     }
 
-    return NextResponse.json({ customer, updatedExisting: !!existing })
+    return NextResponse.json({
+      customer,
+      token,
+      user: user ? publicUser(user) : null,
+      updatedExisting: !!existing,
+    })
   } catch (error) {
     console.error('[api/customers] erro:', error)
     return NextResponse.json({ error: 'Erro interno ao registar cliente.' }, { status: 500 })
   }
 }
 
-// GET /api/customers?phone=... - entrada de cliente existente
-export async function GET(req: NextRequest) {
-  try {
-    await ensureSeed()
-    const phone = req.nextUrl.searchParams.get('phone')
-    if (!phone) {
-      return NextResponse.json({ error: 'Parâmetro phone é obrigatório.' }, { status: 400 })
-    }
-    const customer = await db.customer.findUnique({ where: { phone: phone.trim() } })
-    if (!customer) {
-      return NextResponse.json({ error: 'Cliente não encontrado. Crie a sua conta.' }, { status: 404 })
-    }
-    return NextResponse.json({ customer })
-  } catch (error) {
-    console.error('[api/customers] erro:', error)
-    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
-  }
-}
+// NOTA: o antigo GET /api/customers?phone=... (devolvia nome, morada e GPS
+// de qualquer cliente só com o número de telefone) foi REMOVIDO por segurança.
+// A entrada de clientes existentes faz-se por /api/auth/login com senha.

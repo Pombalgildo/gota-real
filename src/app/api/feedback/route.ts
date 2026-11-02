@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
-import { ORDER_MANAGER_ROLES, requireRole } from '@/lib/auth'
+import { ORDER_MANAGER_ROLES, requireRole, checkCustomerAccess } from '@/lib/auth'
 
 // GET /api/feedback?customerId=... - sugestões e reclamações
 // (sem customerId = todas, usado pela central: admin e atendente)
@@ -15,6 +15,12 @@ export async function GET(req: NextRequest) {
           { error: 'Apenas a equipa pode ver todas as mensagens.' },
           { status: 403 }
         )
+      }
+    } else {
+      // o histórico de mensagens só é visto pelo próprio cliente (sessão)
+      const access = await checkCustomerAccess(req, customerId)
+      if (!access.ok) {
+        return NextResponse.json({ error: access.error }, { status: access.status })
       }
     }
     const feedbacks = await db.feedback.findMany({
@@ -33,6 +39,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/feedback - cliente envia sugestão ou reclamação
+// (mensagens em nome de um cliente exigem a sessão do próprio)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -43,6 +50,14 @@ export async function POST(req: NextRequest) {
     }
     if (!subject?.trim() || !message?.trim()) {
       return NextResponse.json({ error: 'Assunto e mensagem são obrigatórios.' }, { status: 400 })
+    }
+
+    if (customerId) {
+      // apenas o próprio cliente (sessão válida) ou a equipa de gestão
+      const access = await checkCustomerAccess(req, String(customerId))
+      if (!access.ok) {
+        return NextResponse.json({ error: access.error }, { status: access.status })
+      }
     }
 
     const feedback = await db.feedback.create({

@@ -8,11 +8,17 @@
  *   3. segundo pedido → cliente RECLAMA que não recebeu ❌
  *   4. admin vê a reclamação nos eventos e RESPONDE
  *   5. relatório diário traz os KPIs (incl. disputas)
+ *   6. limpeza automática dos dados de teste no fim
+ *
+ * Nota: as acções do cliente exigem SESSÃO (registo com auto-entrada).
  *
  * Uso: node scripts/e2e-receipt.mjs [base-url]
- *      (por omissão http://localhost:3000)
+ *      (por omissão http://127.0.0.1:3100)
  */
-const BASE = process.argv[2] ?? 'http://localhost:3000'
+import pg from 'pg'
+
+const BASE = process.argv[2] ?? 'http://127.0.0.1:3100'
+const TEST_PHONE = '923 888 889'
 
 const results = []
 function check(name, ok, extra = '') {
@@ -39,8 +45,13 @@ async function main() {
   // ---------- entradas ----------
   const admin = (await api('/api/auth/login', { method: 'POST', body: { identifier: 'admin@gotareal.ao', password: 'admin123' } })).data
   const motoboy = (await api('/api/auth/login', { method: 'POST', body: { identifier: 'motoboy@gotareal.ao', password: 'motoboy123' } })).data
-  const cliente = (await api('/api/auth/login', { method: 'POST', body: { identifier: 'cliente@gotareal.ao', password: 'cliente123' } })).data
-  check('login dos três papéis', Boolean(admin?.token && motoboy?.token && cliente?.token))
+  // cliente de teste: registo com SESSÃO automática (a conta demo foi
+  // eliminada; e as acções de cliente agora exigem sessão válida)
+  const cliente = (await api('/api/customers', {
+    method: 'POST',
+    body: { name: 'E2E Recepção Temporário', phone: TEST_PHONE, password: 'e2e12345', latitude: -8.81, longitude: 13.23, locationSource: 'exata' },
+  })).data
+  check('login dos três papéis (cliente com sessão do registo)', Boolean(admin?.token && motoboy?.token && cliente?.token))
 
   const customerId = cliente.customer?.id ?? cliente.user?.customerId
   const courierId = motoboy.courier?.id ?? motoboy.user?.courier?.id
@@ -53,6 +64,7 @@ async function main() {
   // ---------- CENÁRIO A: entrega confirmada ----------
   const orderA = (await api('/api/orders', {
     method: 'POST',
+    token: cliente.token,
     body: { customerId, items: [{ productId: product.id, quantity: 1 }], paymentMethod: 'CASH' },
   })).data.order
   check('pedido A criado', Boolean(orderA?.id), `#${orderA?.number}`)
@@ -65,23 +77,25 @@ async function main() {
   check('entrega A ficou À ESPERA da confirmação do cliente', delivered?.receiptStatus === 'pendente')
 
   // o cliente vê o pedido nos eventos com receiptStatus pendente → alarme
-  const evCliente1 = (await api(`/api/events?customerId=${customerId}`)).data
+  const evCliente1 = (await api(`/api/events?customerId=${customerId}`, { token: cliente.token })).data
   const evA = evCliente1.orders.find((o) => o.id === orderA.id)
   check('evento do cliente traz receiptStatus=pendente', evA?.receiptStatus === 'pendente')
 
   const confirmed = (await api(`/api/orders/${orderA.id}/receipt`, {
     method: 'POST',
-    body: { action: 'confirm', customerId },
+    token: cliente.token,
+    body: { action: 'confirm' },
   })).data.order
   check('cliente CONFIRMOU a recepção A', confirmed?.receiptStatus === 'confirmado', `em ${confirmed?.receiptConfirmedAt}`)
 
-  const evCliente2 = (await api(`/api/events?customerId=${customerId}`)).data
+  const evCliente2 = (await api(`/api/events?customerId=${customerId}`, { token: cliente.token })).data
   const evA2 = evCliente2.orders.find((o) => o.id === orderA.id)
   check('alerta de recepção A resolvido nos eventos', evA2?.receiptStatus === 'confirmado')
 
   // ---------- CENÁRIO B: reclamação de não recepção ----------
   const orderB = (await api('/api/orders', {
     method: 'POST',
+    token: cliente.token,
     body: { customerId, items: [{ productId: product.id, quantity: 2 }], paymentMethod: 'TPA' },
   })).data.order
   await api(`/api/orders/${orderB.id}`, { method: 'PATCH', token: admin.token, body: { action: 'confirm' } })
@@ -92,7 +106,8 @@ async function main() {
 
   const disputed = (await api(`/api/orders/${orderB.id}/receipt`, {
     method: 'POST',
-    body: { action: 'dispute', customerId, reason: 'E2E: o motoboy passou sem entregar' },
+    token: cliente.token,
+    body: { action: 'dispute', reason: 'E2E: o motoboy passou sem entregar' },
   })).data.order
   check('cliente RECLAMOU (não recebeu B)', disputed?.receiptStatus === 'disputado', `"${disputed?.disputeReason}"`)
 
@@ -122,7 +137,8 @@ async function main() {
   // cliente não pode re-disputar caso fechado
   const reDispute = await api(`/api/orders/${orderB.id}/receipt`, {
     method: 'POST',
-    body: { action: 'dispute', customerId, reason: 'de novo' },
+    token: cliente.token,
+    body: { action: 'dispute', reason: 'de novo' },
   })
   check('caso fechado não re-abre por repetition', reDispute.status === 400)
 
@@ -143,6 +159,38 @@ async function main() {
   // sem permissão: cliente não vê relatórios
   const noPerm = await api(`/api/reports?period=daily`, { token: cliente.token })
   check('sem permissão: cliente não vê relatórios', noPerm.status === 403)
+
+  // ---------- LIMPEZA dos dados de teste ----------
+  try {
+    const url = process.env.DB_CHECK_URL
+    if (url) {
+      const db = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } })
+      await db.connect()
+      const c = await db.query('SELECT id FROM "Customer" WHERE phone = $1', [TEST_PHONE])
+      if (c.rows.length > 0) {
+        const cid = c.rows[0].id
+        const orders = await db.query('SELECT id FROM "Order" WHERE "customerId" = $1', [cid])
+        for (const o of orders.rows) {
+          const items = await db.query('SELECT "productId", quantity FROM "OrderItem" WHERE "orderId" = $1', [o.id])
+          for (const it of items.rows) {
+            await db.query('UPDATE "Product" SET stock = stock + $1 WHERE id = $2', [it.quantity, it.productId])
+          }
+          await db.query('DELETE FROM "OrderItem" WHERE "orderId" = $1', [o.id])
+          await db.query('DELETE FROM "Order" WHERE id = $1', [o.id])
+        }
+        await db.query('DELETE FROM "Session" WHERE "userId" IN (SELECT id FROM "User" WHERE "customerId" = $1)', [cid])
+        await db.query('DELETE FROM "User" WHERE "customerId" = $1', [cid])
+        await db.query('DELETE FROM "Feedback" WHERE "customerId" = $1', [cid])
+        await db.query('DELETE FROM "Customer" WHERE id = $1', [cid])
+        console.log(`\n🧹 limpeza: cliente de teste e ${orders.rows.length} pedidos removidos, stock reposto`)
+      }
+      await db.end()
+    } else {
+      console.log('\n⚠️ DB_CHECK_URL não definida — dados de teste ficaram na base (limpar com scripts/cleanup-e2e-conta-eliminada.mjs)')
+    }
+  } catch (e) {
+    console.log('\n⚠️ limpeza falhou:', e.message)
+  }
 
   // ---------- resumo ----------
   const failed = results.filter((r) => !r.ok)

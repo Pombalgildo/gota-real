@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
 import { getOrderFull } from '@/lib/orders'
-import { ORDER_MANAGER_ROLES, DELIVERY_ROLES, requireRole } from '@/lib/auth'
+import {
+  ORDER_MANAGER_ROLES,
+  DELIVERY_ROLES,
+  requireRole,
+  getUserFromRequest,
+} from '@/lib/auth'
 
 // GET /api/orders/[id] - detalhe do pedido (com motoboy, para tracking GPS)
+// Apenas o PRÓPRIO cliente do pedido (sessão), a equipa de gestão ou um
+// entregador autenticado.
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -14,6 +21,19 @@ export async function GET(
     const order = await getOrderFull(id)
     if (!order) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 })
+    }
+    const user = await getUserFromRequest(req)
+    const isOwner =
+      !!user && user.active && user.role === 'CLIENTE' && user.customerId === order.customerId
+    const isStaff =
+      !!user &&
+      user.active &&
+      ([...ORDER_MANAGER_ROLES, ...DELIVERY_ROLES] as string[]).includes(user.role)
+    if (!isOwner && !isStaff) {
+      return NextResponse.json(
+        { error: 'Sem permissão para ver este pedido.' },
+        { status: user ? 403 : 401 }
+      )
     }
     return NextResponse.json({ order })
   } catch (error) {

@@ -26,8 +26,10 @@ export function CheckoutSheet() {
     clearCart,
     openTracking,
     setCustomer,
+    auth,
   } = useAppStore()
   const { toast } = useToast()
+  const token = auth?.token ?? null
 
   const [payment, setPayment] = useState<'TPA' | 'CASH'>('TPA')
   const [notes, setNotes] = useState('')
@@ -56,7 +58,7 @@ export function CheckoutSheet() {
             longitude: recapture.lng,
             address: recapture.address ?? customer.address,
             locationSource: 'atualizada',
-          })
+          }, token)
           setCustomer(updated)
         } catch {
           // não bloqueia o pedido
@@ -71,7 +73,7 @@ export function CheckoutSheet() {
         latitude: lat,
         longitude: lng,
         address: deliveryLoc?.address ?? customer.address,
-      })
+      }, token)
 
       clearCart()
       setNotes('')

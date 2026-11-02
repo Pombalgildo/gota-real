@@ -8,6 +8,16 @@ import type {
   User,
 } from '@/lib/types'
 
+/** Erro de API com o código HTTP — permite distinguir “sem rede” de
+ * “sessão terminada” (401/403) e reagir com logout automático. */
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -16,7 +26,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? 'Erro de comunicação com o servidor.')
+    throw new ApiError(
+      (data as { error?: string }).error ?? 'Erro de comunicação com o servidor.',
+      res.status
+    )
   }
   return data as T
 }
@@ -31,6 +44,18 @@ export function apiLogin(identifier: string, password: string) {
   }>('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ identifier, password }),
+  })
+}
+
+/** Valida a sessão actual (usado ao arrancar a app): 401 = conta
+ * eliminada/desactivada ou sessão expirada → sair da conta. */
+export function fetchMe(token: string) {
+  return request<{
+    user: User
+    customer?: Customer | null
+    courier?: Courier | null
+  }>('/api/auth/me', {
+    headers: { Authorization: `Bearer ${token}` },
   })
 }
 
@@ -144,18 +169,22 @@ export function registerCustomer(body: {
   locationSource?: string
   locationNote?: string | null
 }) {
-  return request<{ customer: Customer; updatedExisting?: boolean }>('/api/customers', {
+  // o registo devolve a SESSÃO já aberta (auto-entrada na app)
+  return request<{
+    customer: Customer
+    token?: string | null
+    user?: User | null
+    updatedExisting?: boolean
+  }>('/api/customers', {
     method: 'POST',
     body: JSON.stringify(body),
   })
 }
 
-export function loginCustomer(phone: string) {
-  return request<{ customer: Customer }>(`/api/customers?phone=${encodeURIComponent(phone)}`)
-}
-
-export function fetchCustomer(id: string) {
-  return request<{ customer: Customer; ordersCount: number }>(`/api/customers/${id}`)
+export function fetchCustomer(id: string, token?: string | null) {
+  return request<{ customer: Customer; ordersCount: number }>(`/api/customers/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
 }
 
 export function updateCustomer(
@@ -169,10 +198,12 @@ export function updateCustomer(
     locationSource: string
     locationNote: string | null
     photo: string | null
-  }>
+  }>,
+  token?: string | null
 ) {
   return request<{ customer: Customer }>(`/api/customers/${id}`, {
     method: 'PATCH',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: JSON.stringify(body),
   })
 }
@@ -206,23 +237,29 @@ export function deactivateProduct(token: string, id: string) {
 }
 
 // ---------- Pedidos ----------
-export function createOrder(body: {
-  customerId: string
-  items: { productId: string; quantity: number }[]
-  paymentMethod: 'TPA' | 'CASH'
-  notes?: string
-  latitude?: number | null
-  longitude?: number | null
-  address?: string
-}) {
+export function createOrder(
+  body: {
+    customerId: string
+    items: { productId: string; quantity: number }[]
+    paymentMethod: 'TPA' | 'CASH'
+    notes?: string
+    latitude?: number | null
+    longitude?: number | null
+    address?: string
+  },
+  token?: string | null
+) {
   return request<{ order: Order }>('/api/orders', {
     method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: JSON.stringify(body),
   })
 }
 
-export function fetchCustomerOrders(customerId: string) {
-  return request<{ orders: Order[] }>(`/api/orders?customerId=${customerId}`)
+export function fetchCustomerOrders(customerId: string, token?: string | null) {
+  return request<{ orders: Order[] }>(`/api/orders?customerId=${customerId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
 }
 
 export function fetchAllOrders(token?: string | null) {
@@ -249,19 +286,21 @@ export function orderAction(
 }
 
 // ---------- Confirmação de recepção (anti-burla) ----------
-/** O cliente confirma que recebeu a mercadoria. */
-export function confirmReceipt(orderId: string, customerId: string) {
+/** O cliente confirma que recebeu a mercadoria (exige a sua sessão). */
+export function confirmReceipt(orderId: string, token?: string | null) {
   return request<{ order: Order }>(`/api/orders/${orderId}/receipt`, {
     method: 'POST',
-    body: JSON.stringify({ action: 'confirm', customerId }),
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: JSON.stringify({ action: 'confirm' }),
   })
 }
 
 /** O cliente reclama que NÃO recebeu — a central é alertada na hora. */
-export function disputeReceipt(orderId: string, customerId: string, reason?: string) {
+export function disputeReceipt(orderId: string, token?: string | null, reason?: string) {
   return request<{ order: Order }>(`/api/orders/${orderId}/receipt`, {
     method: 'POST',
-    body: JSON.stringify({ action: 'dispute', customerId, reason }),
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: JSON.stringify({ action: 'dispute', reason }),
   })
 }
 
@@ -300,18 +339,23 @@ export function updateCourier(
 export function fetchFeedback(customerId?: string, token?: string | null) {
   const q = customerId ? `?customerId=${customerId}` : ''
   return request<{ feedbacks: Feedback[] }>(`/api/feedback${q}`, {
-    headers: !customerId && token ? { Authorization: `Bearer ${token}` } : undefined,
+    // a lista de um cliente exige a sua sessão; a lista geral exige equipa
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
 }
 
-export function createFeedback(body: {
-  customerId?: string
-  type: 'sugestao' | 'reclamacao'
-  subject: string
-  message: string
-}) {
+export function createFeedback(
+  body: {
+    customerId?: string
+    type: 'sugestao' | 'reclamacao'
+    subject: string
+    message: string
+  },
+  token?: string | null
+) {
   return request<{ feedback: Feedback }>('/api/feedback', {
     method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: JSON.stringify(body),
   })
 }

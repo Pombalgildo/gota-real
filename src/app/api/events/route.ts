@@ -99,7 +99,17 @@ export async function GET(req: NextRequest) {
     }
 
     // ---------- Cliente: acompanha os seus pedidos e respostas ----------
+    // (exige a SESSÃO do próprio cliente — uma conta eliminada deixa de
+    // receber alertas, mesmo com o id guardado no aparelho)
     if (customerIdParam) {
+      const isOwner =
+        !!user &&
+        user.role === 'CLIENTE' &&
+        user.customerId === customerIdParam &&
+        user.active
+      if (!isOwner) {
+        return NextResponse.json({ serverTime: new Date().toISOString(), scope: 'none', orders: [], feedbacks: [] })
+      }
       const [orders, feedbacks] = await Promise.all([
         db.order.findMany({
           where: { customerId: customerIdParam },

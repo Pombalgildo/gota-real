@@ -36,8 +36,9 @@ import {
 } from 'lucide-react'
 
 export function ProfileView() {
-  const { customer, setCustomer } = useAppStore()
+  const { customer, setCustomer, auth } = useAppStore()
   const { toast } = useToast()
+  const token = auth?.token ?? null
   const { orders } = useCustomerOrders(customer?.id)
   const { store } = useStoreConfig()
 
@@ -66,7 +67,7 @@ export function ProfileView() {
       const { customer: updated } = await updateCustomer(customer!.id, {
         name: name.trim(),
         email: email.trim(),
-      })
+      }, token)
       setCustomer(updated)
       setEditing(false)
       toast({ title: 'Perfil actualizado ✅' })
@@ -91,7 +92,7 @@ export function ProfileView() {
         address: location.address ?? customer!.address,
         locationSource: 'atualizada',
         locationNote: 'Localização actualizada pelo cliente',
-      })
+      }, token)
       setCustomer(updated)
       setLocOpen(false)
       setLocation(null)
@@ -116,7 +117,7 @@ export function ProfileView() {
     setPhotoSaving(true)
     try {
       const dataUrl = await resizeImageToDataUrl(file, 480, 0.85)
-      const { customer: updated } = await updateCustomer(customer.id, { photo: dataUrl })
+      const { customer: updated } = await updateCustomer(customer.id, { photo: dataUrl }, token)
       setCustomer(updated)
       toast({ title: 'Foto de perfil actualizada ✅' })
     } catch (err) {

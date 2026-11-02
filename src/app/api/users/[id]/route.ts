@@ -210,6 +210,25 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     await db.user.delete({ where: { id } })
 
+    // CLIENTE: o registo de cliente só fica se tiver histórico de pedidos
+    // (faturação); sem pedidos é removido por completo — nada de contas
+    // fantasma que possam ser reutilizadas
+    if (user.role === 'CLIENTE' && user.customerId) {
+      const ordersCount = await db.order
+        .count({ where: { customerId: user.customerId } })
+        .catch(() => 1)
+      if (ordersCount === 0) {
+        await db.customer.delete({ where: { id: user.customerId } }).catch(() => undefined)
+      }
+    }
+
+    // avisa a app aberta da cliente NA HORA (sockets, quando disponíveis):
+    // a conta foi encerrada — a app sai para o ecrã de boas-vindas.
+    // Na Vercel (sem sockets) a validação de sessão aos 30s faz o mesmo.
+    if (user.customerId) {
+      await emitRealtime('auth:logout', { customerId: user.customerId })
+    }
+
     await emitRealtime('users:update', { deleted: id })
 
     return NextResponse.json({ ok: true })

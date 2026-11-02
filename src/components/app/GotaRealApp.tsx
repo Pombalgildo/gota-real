@@ -3,7 +3,8 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { useAppStore, cartTotals } from '@/store/app-store'
 import { useProducts } from '@/components/app/hooks'
-import { fetchCustomer } from '@/lib/api'
+import { fetchCustomer, fetchMe, ApiError } from '@/lib/api'
+import { useToast } from '@/hooks/use-toast'
 import { OnboardingView } from '@/components/app/OnboardingView'
 import { HomeView } from '@/components/app/HomeView'
 import { ShopView } from '@/components/app/ShopView'
@@ -41,7 +42,8 @@ const NAV: { key: CustomerTab; label: string; icon: typeof Home }[] = [
 ]
 
 export function GotaRealApp() {
-  const { customer, auth } = useAppStore()
+  const { customer, auth, logout } = useAppStore()
+  const { toast } = useToast()
   // evita mismatch de hidratação (persistência em localStorage):
   // no servidor não há localStorage; no cliente, depois de montar, passa a true
   const mounted = useSyncExternalStore(
@@ -49,6 +51,48 @@ export function GotaRealApp() {
     () => true,
     () => false
   )
+
+  // GUARDA DE SESSÃO (anti “conta eliminada mas operacional”): valida o
+  // token guardado no aparelho sempre que a app arranca ou a sessão muda.
+  // Se a conta foi eliminada/desactivada (ou a sessão expirou), sai para o
+  // ecrã de boas-vindas em vez de continuar a funcionar com dados em cache.
+  useEffect(() => {
+    const token = auth?.token
+    if (!token) return
+    let alive = true
+    fetchMe(token)
+      .then((res) => {
+        if (!alive) return
+        // dados frescos do cliente (ex.: banimento aplicado entretanto)
+        if (res.customer) {
+          const current = useAppStore.getState().customer
+          if (
+            current &&
+            (res.customer.banned !== current.banned ||
+              res.customer.banReason !== current.banReason)
+          ) {
+            useAppStore.getState().setCustomer({ ...current, banned: res.customer.banned, banReason: res.customer.banReason ?? null })
+          }
+        }
+      })
+      .catch((err) => {
+        if (!alive) return
+        // sem rede não faz nada (mantém o estado actual); sessão inválida → sai
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          logout()
+          toast({
+            title: 'Sessão terminada',
+            description:
+              'A conta foi encerrada ou a sua entrada expirou. Se a conta continuar activa, entre novamente com o seu telefone e senha.',
+            variant: 'destructive',
+          })
+        }
+      })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.token])
 
   if (!mounted) {
     return (
@@ -116,7 +160,7 @@ function BannedScreen() {
 }
 
 function CustomerApp() {
-  const { customer, tab, setTab, cart, setCheckoutOpen, syncCartProducts, setCustomer } = useAppStore()
+  const { customer, auth, tab, setTab, cart, setCheckoutOpen, syncCartProducts, setCustomer, logout } = useAppStore()
   const { products } = useProducts()
   // avisos do cliente: mudanças de estado dos pedidos + respostas às mensagens
   const { alerts } = useAlerts()
@@ -124,6 +168,7 @@ function CustomerApp() {
   const messageAlertCount = alerts.filter((a) => a.kind === 'message').length
   const totals = cartTotals(cart)
   const firstName = customer?.name?.split(' ')[0] ?? 'cliente'
+  const token = auth?.token ?? null
 
   // mantém o carrinho sempre actualizado com a base de dados real:
   // se o administrador mudar preços, fotos ou desactivar artigos,
@@ -151,12 +196,14 @@ function CustomerApp() {
 
   // reserva (sem WebSockets, ex. produção na Vercel): confirma o estado
   // da conta junto à base de dados a cada 30s — o banimento aplica-se
-  // mesmo que o cliente mantenha a app aberta sem recarregar
+  // mesmo que o cliente mantenha a app aberta sem recarregar.
+  // Se a conta tiver sido ELIMINADA (401/403/404), a app sai na hora —
+  // é a segunda barreira contra “conta eliminada mas operacional”.
   useEffect(() => {
     if (!customer) return
-    const id = setInterval(async () => {
+    const check = async () => {
       try {
-        const { customer: fresh } = await fetchCustomer(customer.id)
+        const { customer: fresh } = await fetchCustomer(customer.id, token)
         if (fresh && (fresh.banned !== customer.banned || fresh.banReason !== customer.banReason)) {
           setCustomer({
             ...customer,
@@ -164,12 +211,32 @@ function CustomerApp() {
             banReason: fresh.banReason,
           } as typeof customer)
         }
-      } catch {
-        // silencioso — sem rede, mantém o estado actual
+      } catch (err) {
+        // sem rede: mantém o estado actual; sessão inválida → sai da conta
+        if (err instanceof ApiError && [401, 403, 404].includes(err.status)) {
+          logout()
+        }
       }
-    }, 30_000)
+    }
+    check()
+    const id = setInterval(check, 30_000)
     return () => clearInterval(id)
-  }, [customer, setCustomer])
+  }, [customer, token, setCustomer, logout])
+
+  // conta eliminada enquanto a app estava aberta (sockets, quando
+  // disponíveis): o servidor avisa e a app sai de imediato
+  useEffect(() => {
+    if (!customer) return
+    const socket = getRealtimeSocket()
+    const onAccountClosed = (data: { customerId?: string }) => {
+      if (!data || data.customerId !== customer.id) return
+      logout()
+    }
+    socket.on('auth:logout', onAccountClosed)
+    return () => {
+      socket.off('auth:logout', onAccountClosed)
+    }
+  }, [customer, logout])
 
   if (customer?.banned) return <BannedScreen />
 

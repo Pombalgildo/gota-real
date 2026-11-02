@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { checkCustomerAccess } from '@/lib/auth'
 
 // GET /api/customers/[id] - perfil do cliente
+// (apenas a própria sessão do cliente ou a equipa de gestão — sem isto a
+// app de uma conta ELIMINADA continuava a ler o perfil com o id em cache)
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
+    const access = await checkCustomerAccess(req, id)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
+    }
     const customer = await db.customer.findUnique({ where: { id } })
     if (!customer) {
       return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
@@ -21,12 +28,17 @@ export async function GET(
 }
 
 // PATCH /api/customers/[id] - actualizar perfil / localização / FOTO
+// (apenas a própria sessão do cliente ou a equipa de gestão)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
+    const access = await checkCustomerAccess(req, id)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
+    }
     const body = await req.json()
     const { name, email, address, latitude, longitude, locationSource, locationNote, photo } = body
 

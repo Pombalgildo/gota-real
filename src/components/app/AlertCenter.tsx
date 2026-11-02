@@ -243,7 +243,12 @@ export function AlertCenter({ children }: { children: ReactNode }) {
       }
     }
     if (customer) {
-      return { type: 'customer' as const, customerId: customer.id, identity: `customer-${customer.id}` }
+      return {
+        type: 'customer' as const,
+        token: auth?.token ?? null,
+        customerId: customer.id,
+        identity: `customer-${customer.id}`,
+      }
     }
     return null
   }, [auth, courierId, customer])
@@ -304,7 +309,9 @@ export function AlertCenter({ children }: { children: ReactNode }) {
       if (!store || !alive) return
       try {
         const data = await fetchEvents({
-          token: scope.type === 'customer' ? null : scope.token,
+          // o token é exigido também no âmbito do cliente (conta eliminada
+          // deixa de receber alertas)
+          token: scope.token,
           courierId: scope.type === 'courier' ? scope.courierId : null,
           customerId: scope.type === 'customer' ? scope.customerId : null,
         })

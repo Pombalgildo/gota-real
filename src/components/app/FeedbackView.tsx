@@ -21,9 +21,10 @@ import {
 } from 'lucide-react'
 
 export function FeedbackView() {
-  const { customer } = useAppStore()
+  const { customer, auth } = useAppStore()
   const { feedbacks, loading, reload } = useFeedback(customer?.id)
   const { toast } = useToast()
+  const token = auth?.token ?? null
 
   const [type, setType] = useState<'sugestao' | 'reclamacao'>('sugestao')
   const [subject, setSubject] = useState('')
@@ -46,7 +47,7 @@ export function FeedbackView() {
         type,
         subject: subject.trim(),
         message: message.trim(),
-      })
+      }, token)
       setSubject('')
       setMessage('')
       reload()

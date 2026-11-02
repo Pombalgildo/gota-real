@@ -22,7 +22,7 @@ import {
 type Step = 'boas-vindas' | 'dados' | 'localizacao'
 
 export function OnboardingView() {
-  const { setCustomer } = useAppStore()
+  const { setCustomer, setAuth, setMode } = useAppStore()
   const { toast } = useToast()
 
   const [step, setStep] = useState<Step>('boas-vindas')
@@ -75,7 +75,7 @@ export function OnboardingView() {
     }
     setSubmitting(true)
     try {
-      const { customer } = await registerCustomer({
+      const { customer, token, user } = await registerCustomer({
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
@@ -90,11 +90,17 @@ export function OnboardingView() {
             : 'Localização automática provisória — actualize quando possível',
       })
       setCustomer(customer)
+      // o registo abre já a SESSÃO — o cliente entra na app sem passar
+      // pela entrada manual (e as acções de cliente passam a exigir sessão)
+      if (token && user) {
+        setAuth({ token, user })
+        setMode('cliente')
+      }
       toast({
         title: `Bem-vindo(a), ${customer.name.split(' ')[0]}! 💧`,
         description: password.trim()
-          ? 'A sua conta foi criada. Entre depois com o telefone e a sua senha.'
-          : 'A sua conta foi criada. A senha inicial é o seu número de telefone.',
+          ? 'A sua conta foi criada e já está dentro. Use o telefone e a sua senha para entrar noutro aparelho.'
+          : 'A sua conta foi criada e já está dentro. A senha inicial é o seu número de telefone.',
       })
     } catch (err) {
       const isNetwork =

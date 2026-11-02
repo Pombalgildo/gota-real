@@ -77,6 +77,8 @@ export function useProducts() {
 export function useCustomerOrders(customerId: string | null | undefined) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  // sessão do cliente — os pedidos só são listados para o próprio
+  const token = useAppStore((s) => s.auth?.token ?? null)
 
   const reload = useCallback(async () => {
     if (!customerId) {
@@ -85,14 +87,14 @@ export function useCustomerOrders(customerId: string | null | undefined) {
       return
     }
     try {
-      const { orders } = await fetchCustomerOrders(customerId)
+      const { orders } = await fetchCustomerOrders(customerId, token)
       setOrders(orders)
     } catch {
-      // silencioso
+      // silencioso (a guarda de sessão em GotaRealApp trata o logout)
     } finally {
       setLoading(false)
     }
-  }, [customerId])
+  }, [customerId, token])
 
   useEffect(() => {
     reload()

@@ -97,6 +97,50 @@ export async function requireRole(req: NextRequest, roles: readonly string[]) {
   return user
 }
 
+// ---------- Autorização de dados do cliente ----------
+// Antes, os endpoints do cliente (pedidos, perfil, mensagens…) aceitavam
+// apenas o customerId — quem tivesse o id (ou a app com os dados em cache)
+// continuava a usar a conta MESMO DEPOIS de o administrador a eliminar.
+// Agora toda a actividade do cliente exige uma sessão válida do próprio.
+
+export type CustomerAccess =
+  | { ok: true; user: UserWithLinks }
+  | { ok: false; status: 401 | 403; error: string }
+
+/**
+ * Autoriza o acesso a dados/acções de um cliente:
+ * apenas a PRÓPRIA sessão do cliente (perfil CLIENTE ligado ao registo)
+ * ou a equipa de gestão (ADMIN/ATENDENTE).
+ * Clientes banidos continuam autorizados a LER o próprio perfil — o
+ * bloqueio de pedidos tem mensagem própria (ecrã de suspensão).
+ */
+export async function checkCustomerAccess(
+  req: NextRequest,
+  customerId: string
+): Promise<CustomerAccess> {
+  const user = await getUserFromRequest(req)
+  if (!user) {
+    return {
+      ok: false,
+      status: 401,
+      error: 'A sua sessão terminou. Saia da conta e entre novamente com o seu telefone e senha.',
+    }
+  }
+  if (!user.active || (user.banned && user.role !== 'CLIENTE')) {
+    return {
+      ok: false,
+      status: 401,
+      error: 'A sua conta foi encerrada ou desactivada pelo administrador.',
+    }
+  }
+  const isOwner = user.role === 'CLIENTE' && user.customerId === customerId
+  const isManager = (ORDER_MANAGER_ROLES as readonly string[]).includes(user.role)
+  if (!isOwner && !isManager) {
+    return { ok: false, status: 403, error: 'Sem permissão para aceder a estes dados.' }
+  }
+  return { ok: true, user }
+}
+
 /** Remove a senha antes de enviar o utilizador para o front-end. */
 export function publicUser<T extends { password?: string }>(user: T): Omit<T, 'password'> {
   const { password: _password, ...rest } = user

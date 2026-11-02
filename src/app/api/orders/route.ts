@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, withDbRetry } from '@/lib/db'
 import { emitRealtime } from '@/lib/realtime-emitter'
 import { listOrders, nextOrderNumber } from '@/lib/orders'
-import { ORDER_MANAGER_ROLES, DELIVERY_ROLES, requireRole } from '@/lib/auth'
+import { ORDER_MANAGER_ROLES, DELIVERY_ROLES, requireRole, checkCustomerAccess } from '@/lib/auth'
 
 // POST /api/orders - cliente solicita a mercadoria
+// Exige a SESSÃO do próprio cliente (ou um gestor a criar em nome dele):
+// uma conta eliminada pelo administrador deixa de poder pedir, mesmo com
+// os dados guardados no aparelho.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -18,6 +21,12 @@ export async function POST(req: NextRequest) {
     }
     if (paymentMethod !== 'TPA' && paymentMethod !== 'CASH') {
       return NextResponse.json({ error: 'Modo de pagamento inválido (TPA ou CASH).' }, { status: 400 })
+    }
+
+    // apenas o próprio cliente (sessão válida) ou a equipa de gestão
+    const access = await checkCustomerAccess(req, String(customerId))
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
     }
 
     const customer = await db.customer.findUnique({ where: { id: customerId } })
@@ -124,7 +133,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/orders?customerId=... - pedidos do cliente
+// GET /api/orders?customerId=... - pedidos do cliente (apenas a própria
+// sessão do cliente ou a equipa de gestão)
 // GET /api/orders?all=1 - todos os pedidos (central: admin/atendente e entregadores)
 export async function GET(req: NextRequest) {
   try {
@@ -140,6 +150,12 @@ export async function GET(req: NextRequest) {
           { error: 'Apenas a equipa de pedidos e entregas pode ver todos os pedidos.' },
           { status: 403 }
         )
+      }
+    } else if (customerId) {
+      // o histórico de pedidos só é visto pelo próprio cliente (sessão)
+      const access = await checkCustomerAccess(req, customerId)
+      if (!access.ok) {
+        return NextResponse.json({ error: access.error }, { status: access.status })
       }
     }
     const orders = await listOrders(customerId ? { customerId } : undefined)
