@@ -8,6 +8,7 @@
  *   ✂ Feedback            (sugestões/reclamações de teste)
  *   ✂ Session             (sessões antigas de equipa)
  *   ✂ GPS dos entregadores (posição/estado de teste → disponível, sem posição)
+ *   📦 Stock dos produtos é REPÔSTO (as quantidades dos pedidos de teste voltam)
  *
  * O que é MANTIDO:
  *   ✅ Users (admin, atendente, motoboy, contas de cliente)
@@ -64,7 +65,24 @@ async function main() {
   }
 
   console.log('\nA apagar…')
-  // itens primeiro (FK), depois pedidos; feedback e sessões são independentes
+  // 1) repõe o stock consumido pelos pedidos de teste (igual ao cancelar).
+  //    ATENÇÃO: só pedidos NÃO cancelados — os cancelados já devolveram
+  //    stock quando foram anulados (restaurar tudo contaria a dobrar)
+  const restored = await client.query(`
+    UPDATE "Product" p
+    SET stock = p.stock + s.qty
+    FROM (
+      SELECT oi."productId" AS pid, SUM(oi."quantity")::int AS qty
+      FROM "OrderItem" oi
+      JOIN "Order" o ON o.id = oi."orderId"
+      WHERE o.status <> 'cancelado'
+      GROUP BY oi."productId"
+    ) s
+    WHERE p.id = s.pid
+  `)
+  console.log(`📦 stock reposto em ${restored.rowCount} produto(s) (quantidades dos pedidos de teste devolvidas)`)
+
+  // 2) itens primeiro (FK), depois pedidos; feedback e sessões são independentes
   await client.query('DELETE FROM "OrderItem"')
   const delOrders = await client.query('DELETE FROM "Order"')
   const delFeedback = await client.query('DELETE FROM "Feedback"')
