@@ -11,7 +11,7 @@ import pg from 'pg'
 const DB_CHECK_URL =
   'postgresql://neondb_owner:npg_TFUJYg64NeLP@ep-dawn-sun-b5v51mj7-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require'
 
-const PHONES = ['923 888 777', '923 888 778', '923 777 555', '923 888 889', '923 888 890']
+const PHONES = ['923 888 777', '923 888 778', '923 777 555', '923 888 889', '923 888 890', '923 666 555']
 
 const client = new pg.Client({ connectionString: DB_CHECK_URL, ssl: { rejectUnauthorized: false } })
 await client.connect()
