@@ -50,6 +50,30 @@ export async function PATCH(req: NextRequest) {
     if (body.deliveryFeeKz != null) data.deliveryFeeKz = Number(body.deliveryFeeKz) || 0
     if (body.minOrderKz != null) data.minOrderKz = Number(body.minOrderKz) || 0
 
+    // Localização GPS da base da empresa: coordenadas do ponto exacto
+    // de onde sai a mercadoria (capturadas pelo administrador nos Ajustes)
+    if (body.latitude != null && body.longitude != null) {
+      const lat = Number(body.latitude)
+      const lng = Number(body.longitude)
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        data.latitude = lat
+        data.longitude = lng
+        data.locationSource = String(body.locationSource ?? 'gps')
+        data.locationAccuracy =
+          body.locationAccuracy != null && Number.isFinite(Number(body.locationAccuracy))
+            ? Number(body.locationAccuracy)
+            : null
+        data.locationUpdatedAt = new Date()
+      }
+    } else if (body.clearLocation === true) {
+      // limpar a localização da base
+      data.latitude = null
+      data.longitude = null
+      data.locationSource = null
+      data.locationAccuracy = null
+      data.locationUpdatedAt = null
+    }
+
     const store = await db.storeConfig.upsert({
       where: { id: 'main' },
       update: data,

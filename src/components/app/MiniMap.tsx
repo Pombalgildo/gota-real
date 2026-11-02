@@ -7,61 +7,99 @@ import { haversineKm, formatDistance, etaMinutes, type GeoPoint } from '@/lib/ge
 interface MiniMapProps {
   customer: GeoPoint | null
   courier?: GeoPoint | null
+  /** Base da empresa — ponto de onde sai a mercadoria */
+  origin?: GeoPoint | null
+  originLabel?: string
   live?: boolean
   courierLabel?: string
+  /** rótulo do destino (cliente) — “Você” na app do cliente, nome na app do motoboy */
+  customerLabel?: string
   className?: string
   compact?: boolean
 }
 
+interface ScreenPoint {
+  sx: number
+  sy: number
+}
+
 /**
  * Mapa GPS estilizado (auto-contido, sem tiles externos) que mostra
- * a posição do cliente e do motoboy em tempo real, com distância e ETA.
+ * a base da empresa (origem), o motoboy em tempo real e o cliente
+ * (destino), com trajecto e distância/ETA.
  */
 export function MiniMap({
   customer,
   courier,
+  origin,
+  originLabel = 'Gota REAL',
   live = false,
   courierLabel = 'Motoboy',
+  customerLabel = 'Você',
   className,
   compact = false,
 }: MiniMapProps) {
   const W = 400
   const H = compact ? 210 : 260
-  const PAD = 56
+  const PAD = 62
 
   const layout = useMemo(() => {
     if (!customer) return null
-    if (!courier) {
-      return { cx: W / 2, cy: H / 2, mx: W / 2, my: H / 2, hasCourier: false }
-    }
-    // projeção local simples (graus -> km)
+
+    // pontos presentes: cliente (sempre), origem e motoboy (opcionais)
+    const pts: Array<{ key: 'customer' | 'origin' | 'courier'; p: GeoPoint }> = [
+      { key: 'customer', p: customer },
+    ]
+    if (origin) pts.push({ key: 'origin', p: origin })
+    if (courier) pts.push({ key: 'courier', p: courier })
+
+    // projeção local simples (graus -> km), centrada no cliente
     const kmPerDegLat = 110.574
     const kmPerDegLng = 111.32 * Math.cos((customer.lat * Math.PI) / 180)
-    const dxKm = (courier.lng - customer.lng) * kmPerDegLng
-    const dyKm = (courier.lat - customer.lat) * kmPerDegLat
+    const km = pts.map(({ key, p }) => ({
+      key,
+      x: (p.lng - customer.lng) * kmPerDegLng,
+      y: (p.lat - customer.lat) * kmPerDegLat,
+    }))
 
-    const spanX = Math.abs(dxKm) || 0.4
-    const spanY = Math.abs(dyKm) || 0.4
+    // limites e escala para caberem todos os marcadores com folga
+    const xs = km.map((k) => k.x)
+    const ys = km.map((k) => k.y)
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs)
+    const minY = Math.min(...ys)
+    const maxY = Math.max(...ys)
+    const spanX = Math.max(maxX - minX, 0.35)
+    const spanY = Math.max(maxY - minY, 0.35)
     const scale = Math.min((W - 2 * PAD) / spanX, (H - 2 * PAD) / spanY)
+    const midX = (minX + maxX) / 2
+    const midY = (minY + maxY) / 2
 
-    const midX = (W / 2) - ((dxKm / 2) * scale)
-    const midY = (H / 2) + ((dyKm / 2) * scale)
-    const cx = midX - (dxKm / 2) * scale * 0 + 0 // cliente
-    // posições: cliente e motoboy simétricos em torno do centro
-    const custX = W / 2 - (dxKm / 2) * scale
-    const custY = H / 2 + (dyKm / 2) * scale
-    const courX = W / 2 + (dxKm / 2) * scale
-    const courY = H / 2 - (dyKm / 2) * scale
+    const project = (x: number, y: number): ScreenPoint => ({
+      sx: W / 2 + (x - midX) * scale,
+      sy: H / 2 - (y - midY) * scale,
+    })
+
+    const find = (key: string) => km.find((k) => k.key === key)
+    const customerKm = find('customer')!
+    const originKm = find('origin')
+    const courierKm = find('courier')
+
     return {
-      cx: custX,
-      cy: custY,
-      mx: courX,
-      my: courY,
-      hasCourier: true,
+      customer: project(customerKm.x, customerKm.y),
+      origin: originKm ? project(originKm.x, originKm.y) : null,
+      courier: courierKm ? project(courierKm.x, courierKm.y) : null,
     }
-  }, [customer, courier])
+  }, [customer, courier, origin])
 
-  const distanceKm = customer && courier ? haversineKm(customer, courier) : null
+  // distância que interessa ao cliente: motoboy→cliente; sem motoboy,
+  // a distância total da rota (empresa→cliente)
+  const distanceKm =
+    customer && courier
+      ? haversineKm(customer, courier)
+      : customer && origin
+        ? haversineKm(customer, origin)
+        : null
 
   return (
     <div
@@ -70,7 +108,9 @@ export function MiniMap({
         className
       )}
       role="img"
-      aria-label={`Mapa de rastreio GPS. ${distanceKm != null ? `Motoboy a ${formatDistance(distanceKm)}.` : ''}`}
+      aria-label={`Mapa de rastreio GPS. ${
+        origin ? `A mercadoria sai da base ${originLabel}. ` : ''
+      }${distanceKm != null ? `Distância: ${formatDistance(distanceKm)}.` : ''}`}
     >
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -120,13 +160,52 @@ export function MiniMap({
 
         {layout && (
           <>
-            {/* trajecto */}
-            {layout.hasCourier && (
+            {/* trajectos: empresa → motoboy → cliente (ou empresa → cliente) */}
+            {layout.origin && layout.courier && (
+              <>
+                <line
+                  x1={layout.origin.sx}
+                  y1={layout.origin.sy}
+                  x2={layout.courier.sx}
+                  y2={layout.courier.sy}
+                  stroke="#7EC8E3"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeDasharray="1 9"
+                  opacity="0.55"
+                />
+                <line
+                  x1={layout.courier.sx}
+                  y1={layout.courier.sy}
+                  x2={layout.customer.sx}
+                  y2={layout.customer.sy}
+                  stroke="#7EC8E3"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  className="route-dash"
+                  opacity="0.9"
+                />
+              </>
+            )}
+            {layout.origin && !layout.courier && (
               <line
-                x1={layout.cx}
-                y1={layout.cy}
-                x2={layout.mx}
-                y2={layout.my}
+                x1={layout.origin.sx}
+                y1={layout.origin.sy}
+                x2={layout.customer.sx}
+                y2={layout.customer.sy}
+                stroke="#7EC8E3"
+                strokeWidth="3"
+                strokeLinecap="round"
+                className="route-dash"
+                opacity="0.9"
+              />
+            )}
+            {!layout.origin && layout.courier && (
+              <line
+                x1={layout.customer.sx}
+                y1={layout.customer.sy}
+                x2={layout.courier.sx}
+                y2={layout.courier.sy}
                 stroke="#7EC8E3"
                 strokeWidth="3"
                 strokeLinecap="round"
@@ -135,11 +214,45 @@ export function MiniMap({
               />
             )}
 
-            {/* marcador do motoboy */}
-            {layout.hasCourier && (
+            {/* marcador da base da empresa (origem da mercadoria) */}
+            {layout.origin && (
               <g
                 style={{
-                  transform: `translate(${layout.mx}px, ${layout.my}px)`,
+                  transform: `translate(${layout.origin.sx}px, ${layout.origin.sy}px)`,
+                  transition: 'transform 0.8s ease',
+                }}
+              >
+                <circle r="22" fill="#0E569E" opacity="0.25" />
+                <circle r="14" fill="#FFFFFF" stroke="#0A3D7C" strokeWidth="3" />
+                {/* ícone garrafa/coroa da empresa */}
+                <g transform="translate(-7,-8) scale(0.58)">
+                  <path
+                    d="M2 22 L4 6 L8 11 L12 3 L16 11 L20 6 L22 22 Z"
+                    fill="#0A3D7C"
+                    stroke="#0A3D7C"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
+                  />
+                  <rect x="2" y="22" width="20" height="3.4" rx="1.4" fill="#D9A62E" />
+                </g>
+                <text
+                  y="-24"
+                  textAnchor="middle"
+                  fontSize="11"
+                  fontWeight="700"
+                  fill="#FFFFFF"
+                  style={{ paintOrder: 'stroke', stroke: '#072a55', strokeWidth: 3 }}
+                >
+                  {originLabel}
+                </text>
+              </g>
+            )}
+
+            {/* marcador do motoboy */}
+            {layout.courier && (
+              <g
+                style={{
+                  transform: `translate(${layout.courier.sx}px, ${layout.courier.sy}px)`,
                   transition: 'transform 1.2s linear',
                 }}
               >
@@ -173,7 +286,7 @@ export function MiniMap({
             {/* marcador do cliente */}
             <g
               style={{
-                transform: `translate(${layout.cx}px, ${layout.cy}px)`,
+                transform: `translate(${layout.customer.sx}px, ${layout.customer.sy}px)`,
                 transition: 'transform 0.8s ease',
               }}
             >
@@ -196,7 +309,7 @@ export function MiniMap({
                 fill="#FFFFFF"
                 style={{ paintOrder: 'stroke', stroke: '#072a55', strokeWidth: 3 }}
               >
-                Você
+                {customerLabel}
               </text>
             </g>
           </>

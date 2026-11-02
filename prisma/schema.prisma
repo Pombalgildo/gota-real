@@ -123,6 +123,13 @@ model StoreConfig {
   deliveryFeeKz Float    @default(0)
   minOrderKz    Float    @default(0)
   note          String   @default("")
+  // Localização GPS da base da empresa (capturada pelo administrador)
+  latitude          Float?
+  longitude         Float?
+  locationAccuracy  Float?
+  // "gps" | "simulado"
+  locationSource    String?
+  locationUpdatedAt DateTime?
   updatedAt     DateTime @updatedAt
 }
 

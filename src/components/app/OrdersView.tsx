@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { useAppStore, formatKz, formatLiters, formatDateTime, durationMinutes } from '@/store/app-store'
-import { useCustomerOrders, useCourierPosition, useProducts } from '@/components/app/hooks'
+import { useCustomerOrders, useCourierPosition, useProducts, useStoreConfig } from '@/components/app/hooks'
 import { OrderTimeline } from '@/components/app/OrderTimeline'
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { MiniMap } from '@/components/app/MiniMap'
 import { ProductArt } from '@/components/app/ProductArt'
-import { googleMapsNavUrl } from '@/lib/geo'
+import { googleMapsNavUrl, CENTRAL_BASE } from '@/lib/geo'
 import type { Order } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -126,11 +126,26 @@ function kindOf(productName: string): string {
 
 function TrackingDetail({ order, onBack }: { order: Order; onBack: () => void }) {
   const courierPos = useCourierPosition(order.courierId)
+  const { store } = useStoreConfig()
   const inTransit = order.status === 'em_transito'
   const customerPoint =
     order.latitude != null && order.longitude != null
       ? { lat: order.latitude, lng: order.longitude }
       : null
+
+  // base da empresa: localização GPS configurada pelo administrador
+  // (fallback: centro de demonstração de Luanda)
+  const originPoint =
+    store?.latitude != null && store?.longitude != null
+      ? { lat: store.latitude, lng: store.longitude }
+      : CENTRAL_BASE
+  const originConfigured = store?.latitude != null && store?.longitude != null
+
+  // o mapa mostra-se sempre que há destino: antes da partida o cliente vê
+  // de onde a mercadoria sai; em trânsito vê o motoboy a aproximar-se
+  const showMap =
+    customerPoint != null &&
+    (inTransit || order.status === 'pendente' || order.status === 'confirmado')
 
   return (
     <div className="space-y-4 pb-4">
@@ -151,14 +166,23 @@ function TrackingDetail({ order, onBack }: { order: Order; onBack: () => void })
       </div>
 
       {/* mapa ao vivo */}
-      {inTransit && customerPoint ? (
+      {showMap ? (
         <div className="space-y-2">
           <MiniMap
             customer={customerPoint}
-            courier={courierPos}
+            courier={inTransit ? courierPos : null}
+            origin={originPoint}
             live={inTransit}
             courierLabel={order.courier?.name?.split(' ')[0] ?? 'Motoboy'}
+            originLabel={store?.name || 'Gota REAL'}
           />
+          {!inTransit && (
+            <p className="rounded-xl bg-secondary/60 px-3 py-2 text-[11px] font-semibold leading-snug text-secondary-foreground">
+              👑 A sua água sai da base {store?.name || 'Gota REAL'}
+              {!originConfigured && ' (local de demonstração — a central ainda não configurou o GPS da empresa)'}
+              . Quando o motoboy partir, acompanhe o trajecto aqui em tempo real.
+            </p>
+          )}
           <div className="flex gap-2">
             <Button
               variant="outline"

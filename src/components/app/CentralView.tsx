@@ -7,6 +7,7 @@ import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { OrderTimeline } from '@/components/app/OrderTimeline'
 import { ProductPhoto } from '@/components/app/ProductPhoto'
 import { Avatar, PhotoPicker } from '@/components/app/Avatar'
+import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { resizeImageToDataUrl } from '@/lib/image'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { InstallPrompt } from '@/components/app/InstallPrompt'
@@ -1700,6 +1701,8 @@ function StoreSettingsPanel() {
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  // localização GPS da base da empresa (capturada tal como o cliente faz)
+  const [hqLoc, setHqLoc] = useState<PickedLocation | null>(null)
 
   // carrega os valores actuais assim que a loja chegar
   if (store && !loaded) {
@@ -1712,6 +1715,15 @@ function StoreSettingsPanel() {
     setDeliveryFee(String(store.deliveryFeeKz))
     setMinOrder(String(store.minOrderKz))
     setNote(store.note)
+    if (store.latitude != null && store.longitude != null) {
+      setHqLoc({
+        lat: store.latitude,
+        lng: store.longitude,
+        accuracy: store.locationAccuracy ?? null,
+        source: store.locationSource === 'simulado' ? 'simulado' : 'gps',
+        address: store.address,
+      })
+    }
     setLoaded(true)
   }
 
@@ -1732,10 +1744,22 @@ function StoreSettingsPanel() {
         deliveryFeeKz: Number(deliveryFee) || 0,
         minOrderKz: Number(minOrder) || 0,
         note: note.trim(),
+        ...(hqLoc
+          ? {
+              latitude: hqLoc.lat,
+              longitude: hqLoc.lng,
+              locationAccuracy: hqLoc.accuracy ?? null,
+              locationSource: hqLoc.source,
+            }
+          : store?.latitude != null
+            ? { clearLocation: true }
+            : {}),
       })
       toast({
         title: 'Dados da loja guardados ✅',
-        description: 'Já estão visíveis para os clientes na app.',
+        description: hqLoc
+          ? 'A base GPS da empresa está activa — o cliente vê a origem da entrega no mapa.'
+          : 'Já estão visíveis para os clientes na app.',
       })
     } catch (err) {
       toast({
@@ -1788,6 +1812,37 @@ function StoreSettingsPanel() {
             <MapPin className="h-3.5 w-3.5 text-primary" /> Endereço
           </Label>
           <Input id="st-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rua da Independência, Luanda" />
+        </div>
+
+        {/* localização GPS da base da empresa */}
+        <div className="space-y-3 rounded-2xl border-2 border-primary/25 bg-secondary/40 p-3.5">
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-black text-navy">
+              <MapPin className="h-4 w-4 text-primary" /> Localização GPS da base (empresa)
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              Capture o ponto exacto de onde sai a mercadoria — igual ao cliente faz no cadastro.
+              O cliente passa a ver a base no mapa e acompanhar o trajecto até à sua porta.
+            </p>
+          </div>
+          <LocationPicker
+            value={hqLoc}
+            onChange={(loc) => {
+              setHqLoc(loc)
+              // o endereço descritivo acompanha a localização capturada
+              if (loc?.address) setAddress(loc.address)
+            }}
+            compact
+          />
+          {hqLoc && (
+            <button
+              type="button"
+              onClick={() => setHqLoc(null)}
+              className="text-[11px] font-bold text-red-600 underline underline-offset-2"
+            >
+              Remover localização da base
+            </button>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="st-hours" className="flex items-center gap-1.5">

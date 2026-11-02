@@ -116,6 +116,13 @@ export function updateStore(
     deliveryFeeKz: number
     minOrderKz: number
     note: string
+    /** Localização GPS da base da empresa */
+    latitude: number | null
+    longitude: number | null
+    locationAccuracy: number | null
+    locationSource: string
+    /** true = remover a localização da base */
+    clearLocation: boolean
   }>
 ) {
   return request<{ store: StoreConfig }>('/api/store', {

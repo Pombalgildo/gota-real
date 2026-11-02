@@ -82,6 +82,12 @@ export interface StoreConfig {
   deliveryFeeKz: number
   minOrderKz: number
   note: string
+  /** Localização GPS da base da empresa (de onde sai a mercadoria) */
+  latitude?: number | null
+  longitude?: number | null
+  locationAccuracy?: number | null
+  locationSource?: string | null
+  locationUpdatedAt?: string | null
   updatedAt: string
 }
 

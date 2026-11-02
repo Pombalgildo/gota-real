@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore, formatKz, formatDateTime } from '@/store/app-store'
-import { useCouriers, useAllOrders } from '@/components/app/hooks'
+import { useCouriers, useAllOrders, useStoreConfig } from '@/components/app/hooks'
 import { MiniMap } from '@/components/app/MiniMap'
 import { PaymentBadge } from '@/components/app/Badges'
 import { Avatar } from '@/components/app/Avatar'
@@ -16,6 +16,7 @@ import {
   googleMapsNavUrl,
   watchPosition,
   clearWatchSafe,
+  CENTRAL_BASE,
   type GeoPoint,
 } from '@/lib/geo'
 import { useToast } from '@/hooks/use-toast'
@@ -226,6 +227,7 @@ function MotoboyPanel({ courierName, isDriver }: { courierName?: string; isDrive
 function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_transit' }) {
   const { toast } = useToast()
   const { auth } = useAppStore()
+  const { store } = useStoreConfig()
   const [busy, setBusy] = useState(false)
 
   // GPS ao vivo
@@ -273,10 +275,14 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
     [order.courierId]
   )
 
-  /** simula o trajecto do motoboy até ao cliente */
+  /** simula o trajecto do motoboy até ao cliente (sai da base da empresa) */
   const simulateRide = useCallback(async () => {
     if (!dest || !order.courierId) return
-    const start: GeoPoint = myPos ?? { lat: -8.847, lng: 13.241 }
+    const companyBase: GeoPoint =
+      store?.latitude != null && store?.longitude != null
+        ? { lat: store.latitude, lng: store.longitude }
+        : CENTRAL_BASE
+    const start: GeoPoint = myPos ?? companyBase
     const steps = 26
     simRef.current.stop = false
     setSimulating(true)
@@ -298,7 +304,7 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
       })
     }
     setSimulating(false)
-  }, [dest, myPos, order.courierId, sendPos, toast])
+  }, [dest, myPos, order.courierId, sendPos, store, toast])
 
   function stopSimulation() {
     simRef.current.stop = true
@@ -390,8 +396,15 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
         <MiniMap
           customer={dest}
           courier={myPos}
+          origin={
+            store?.latitude != null && store?.longitude != null
+              ? { lat: store.latitude, lng: store.longitude }
+              : CENTRAL_BASE
+          }
           live={mode === 'in_transit' && (simulating || realGps)}
           courierLabel="Você"
+          customerLabel={order.customer?.name?.split(' ')[0] || 'Cliente'}
+          originLabel={store?.name || 'Gota REAL'}
           compact
         />
       )}
