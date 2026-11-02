@@ -248,6 +248,32 @@ export function orderAction(
   })
 }
 
+// ---------- Confirmação de recepção (anti-burla) ----------
+/** O cliente confirma que recebeu a mercadoria. */
+export function confirmReceipt(orderId: string, customerId: string) {
+  return request<{ order: Order }>(`/api/orders/${orderId}/receipt`, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'confirm', customerId }),
+  })
+}
+
+/** O cliente reclama que NÃO recebeu — a central é alertada na hora. */
+export function disputeReceipt(orderId: string, customerId: string, reason?: string) {
+  return request<{ order: Order }>(`/api/orders/${orderId}/receipt`, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'dispute', customerId, reason }),
+  })
+}
+
+/** A administração responde à reclamação e fecha o caso. */
+export function resolveDispute(token: string, orderId: string, resolution: string) {
+  return request<{ order: Order }>(`/api/orders/${orderId}/receipt`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'resolve', resolution }),
+  })
+}
+
 // ---------- Motoboys ----------
 export function fetchCouriers() {
   return request<{ couriers: Courier[] }>('/api/couriers')
@@ -307,6 +333,11 @@ export interface EventOrder {
   totalKz?: number
   totalLiters?: number
   address?: string
+  /** confirmação de recepção do cliente (anti-burla) */
+  receiptStatus?: string | null
+  disputeReason?: string | null
+  deliveredAt?: string | null
+  courier?: { name?: string; vehicle?: string } | null
   requestedAt: string
   updatedAt: string
   customer?: { id: string; name: string; phone: string } | null
@@ -346,3 +377,50 @@ export function fetchEvents(params: {
   })
 }
 
+
+// ---------- Relatórios de actividade (diário / semanal / mensal) ----------
+export interface ReportSeriesSlot {
+  key: string
+  label: string
+  orders: number
+  delivered: number
+  revenueKz: number
+}
+
+export interface ReportData {
+  period: 'daily' | 'weekly' | 'monthly'
+  ref: string
+  label: string
+  from: string
+  to: string
+  generatedAt: string
+  kpis: {
+    ordersTotal: number
+    delivered: number
+    cancelled: number
+    pending: number
+    confirmed: number
+    inTransit: number
+    revenueKz: number
+    liters: number
+    avgDeliveryMin: number | null
+    newCustomers: number
+    messages: number
+    messagesOpen: number
+    receiptsConfirmed: number
+    receiptsPending: number
+    disputesOpen: number
+    disputesResolved: number
+  }
+  series: ReportSeriesSlot[]
+  topProducts: { name: string; quantity: number; revenueKz: number }[]
+  couriers: { name: string; deliveries: number; avgMin: number | null }[]
+  payments: { method: string; count: number; revenueKz: number }[]
+}
+
+/** Relatório de actividade para o período e a data de referência. */
+export function fetchReports(token: string, period: 'daily' | 'weekly' | 'monthly', ref: string) {
+  return request<ReportData>(`/api/reports?period=${period}&ref=${encodeURIComponent(ref)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}

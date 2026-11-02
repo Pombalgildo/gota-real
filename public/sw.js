@@ -5,7 +5,7 @@
    - A API (pedidos, login) NUNCA é cacheada — dados sempre frescos
    ============================================================ */
 
-const VERSION = 'gota-real-v0.2.8'
+const VERSION = 'gota-real-v0.2.9'
 const STATIC_CACHE = `${VERSION}-static`
 
 const PRECACHE = [

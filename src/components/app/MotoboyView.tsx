@@ -348,7 +348,10 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
         simulateRide()
       } else {
         simRef.current.stop = true
-        toast({ title: 'Entrega concluída! ✅', description: `Registada às ${new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}` })
+        toast({
+          title: 'Entrega concluída! ✅',
+          description: 'O cliente vai confirmar que recebeu — a central só fecha o caso depois da confirmação dele.',
+        })
       }
     } catch (err) {
       toast({

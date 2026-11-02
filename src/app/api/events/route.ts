@@ -10,8 +10,10 @@ import { getUserFromRequest, ORDER_MANAGER_ROLES, DELIVERY_ROLES } from '@/lib/a
  * e dispara o alarme sonoro:
  *
  *   ADMIN / ATENDENTE (vendas) → pedidos pendentes + mensagens abertas
+ *                             + RECLAMAÇÕES de não recepção (anti-burla)
  *   MOTOBOY / MOTORISTA       → entregas atribuídas a ele (e canceladas)
  *   CLIENTE (?customerId=)    → estados dos seus pedidos + respostas
+ *                             + CONFIRMAÇÃO DE RECEPÇÃO pendente
  *
  * A resposta é mínima (sem itens, sem fotos) para ser rápida e barata.
  */
@@ -26,8 +28,15 @@ export async function GET(req: NextRequest) {
     if (role && (ORDER_MANAGER_ROLES as readonly string[]).includes(role)) {
       const [orders, feedbacks] = await Promise.all([
         db.order.findMany({
-          where: { status: 'pendente' },
-          orderBy: { requestedAt: 'desc' },
+          // pendentes precisam de acção; disputados sem resposta também
+          // (cliente reclamou que NÃO recebeu — anti-burla)
+          where: {
+            OR: [
+              { status: 'pendente' },
+              { receiptStatus: 'disputado', disputeResolvedAt: null },
+            ],
+          },
+          orderBy: { updatedAt: 'desc' },
           take: 50,
           select: {
             id: true,
@@ -36,6 +45,10 @@ export async function GET(req: NextRequest) {
             totalKz: true,
             totalLiters: true,
             paymentMethod: true,
+            receiptStatus: true,
+            disputeReason: true,
+            deliveredAt: true,
+            courier: { select: { name: true, vehicle: true } },
             requestedAt: true,
             updatedAt: true,
             customer: { select: { id: true, name: true, phone: true } },
@@ -98,6 +111,8 @@ export async function GET(req: NextRequest) {
             status: true,
             totalKz: true,
             totalLiters: true,
+            receiptStatus: true,
+            deliveredAt: true,
             requestedAt: true,
             updatedAt: true,
           },

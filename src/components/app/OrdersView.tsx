@@ -7,32 +7,41 @@ import { OrderTimeline } from '@/components/app/OrderTimeline'
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { MiniMap } from '@/components/app/MiniMap'
 import { ProductArt } from '@/components/app/ProductArt'
+import { confirmReceipt, disputeReceipt } from '@/lib/api'
 import { googleMapsNavUrl, CENTRAL_BASE } from '@/lib/geo'
+import { cn } from '@/lib/utils'
 import type { Order } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/hooks/use-toast'
 import {
   ArrowLeft,
+  BadgeCheck,
   Bike,
   ChevronRight,
   Clock,
   Droplets,
+  Loader2,
   MapPin,
   Navigation,
+  PackageX,
   Phone,
   ReceiptText,
   RotateCcw,
+  ShieldAlert,
   XCircle,
 } from 'lucide-react'
 
 export function OrdersView() {
   const { customer, trackingOrderId, openTracking } = useAppStore()
-  const { orders, loading } = useCustomerOrders(customer?.id)
+  const { orders, loading, reload } = useCustomerOrders(customer?.id)
 
   const tracked = trackingOrderId ? orders.find((o) => o.id === trackingOrderId) : null
 
   if (tracked) {
-    return <TrackingDetail order={tracked} onBack={() => openTracking(null)} />
+    return <TrackingDetail order={tracked} onBack={() => openTracking(null)} onUpdated={reload} />
   }
 
   return (
@@ -60,6 +69,9 @@ function OrderCard({ order }: { order: Order }) {
   const { openTracking } = useAppStore()
   const itemCount = order.items.reduce((s, i) => s + i.quantity, 0)
   const active = order.status !== 'entregue' && order.status !== 'cancelado'
+  // entrega marcada pelo motoboy mas ainda sem a confirmação do cliente
+  const awaitingReceipt = order.status === 'entregue' && order.receiptStatus === 'pendente'
+  const disputed = order.receiptStatus === 'disputado' && !order.disputeResolvedAt
 
   return (
     <button
@@ -80,6 +92,22 @@ function OrderCard({ order }: { order: Order }) {
           </div>
           <StatusBadge status={order.status} className="shrink-0" />
         </div>
+
+        {(awaitingReceipt || disputed) && (
+          <p
+            className={cn(
+              'mt-2 flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-black',
+              disputed ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
+            )}
+          >
+            {disputed ? (
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+            )}
+            {disputed ? 'Reclamação enviada à administração' : 'Confirme que recebeu esta entrega'}
+          </p>
+        )}
 
         <div className="mt-3 flex items-center gap-2">
           {order.items.slice(0, 3).map((item) => (
@@ -124,7 +152,7 @@ function kindOf(productName: string): string {
   return 'acessorio'
 }
 
-function TrackingDetail({ order, onBack }: { order: Order; onBack: () => void }) {
+function TrackingDetail({ order, onBack, onUpdated }: { order: Order; onBack: () => void; onUpdated?: () => void }) {
   const courierPos = useCourierPosition(order.courierId)
   const { store } = useStoreConfig()
   const inTransit = order.status === 'em_transito'
@@ -228,6 +256,11 @@ function TrackingDetail({ order, onBack }: { order: Order; onBack: () => void })
         </h3>
         <OrderTimeline order={order} />
       </section>
+
+      {/* ANTI-BURLA: confirmação de recepção pelo cliente */}
+      {order.status === 'entregue' && (
+        <ReceiptCard order={order} onUpdated={onUpdated} />
+      )}
 
       {/* motoboy */}
       {order.courier && order.status !== 'entregue' && order.status !== 'cancelado' && (
@@ -350,5 +383,204 @@ function ReorderButton({ order }: { order: Order }) {
       <RotateCcw className="h-5 w-5" />
       {added ? 'Pedido no carrinho!' : 'PEDIR NOVAMENTE'}
     </button>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* CONFIRMAÇÃO DE RECEPÇÃO (anti-burla)                               */
+/* O motoboy marcou a entrega? O cliente confirma que recebeu —       */
+/* ou reclama à administração que não recebeu, com aviso imediato.     */
+/* ------------------------------------------------------------------ */
+function ReceiptCard({ order, onUpdated }: { order: Order; onUpdated?: () => void }) {
+  const { customer } = useAppStore()
+  const { toast } = useToast()
+  const [busy, setBusy] = useState(false)
+  const [disputeOpen, setDisputeOpen] = useState(false)
+  const [reason, setReason] = useState('')
+
+  async function confirm() {
+    if (!customer) return
+    setBusy(true)
+    try {
+      await confirmReceipt(order.id, customer.id)
+      toast({ title: 'Recepção confirmada ✅', description: 'Obrigado! A central foi avisada.' })
+      onUpdated?.()
+    } catch (err) {
+      toast({
+        title: 'Não foi possível confirmar',
+        description: err instanceof Error ? err.message : 'Verifique a internet e tente de novo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function dispute() {
+    if (!customer) return
+    setBusy(true)
+    try {
+      await disputeReceipt(order.id, customer.id, reason.trim() || undefined)
+      setDisputeOpen(false)
+      setReason('')
+      toast({
+        title: 'Reclamação enviada à administração ⚠️',
+        description: 'A central foi alertada agora mesmo e vai contactá-lo em breve.',
+      })
+      onUpdated?.()
+    } catch (err) {
+      toast({
+        title: 'Não foi possível enviar a reclamação',
+        description: err instanceof Error ? err.message : 'Verifique a internet e tente de novo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // já confirmado — selo verde com a hora
+  if (order.receiptStatus === 'confirmado') {
+    return (
+      <section
+        aria-labelledby="rc-title"
+        className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4 text-center shadow-sm"
+      >
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow">
+          <BadgeCheck className="h-6 w-6" />
+        </span>
+        <h3 id="rc-title" className="mt-2 text-sm font-black text-emerald-800">
+          Recepção confirmada por você
+        </h3>
+        <p className="mt-1 text-xs text-emerald-700">
+          {order.receiptConfirmedAt
+            ? `Confirmado ${formatDateTime(order.receiptConfirmedAt)} · a central ficou registada`
+            : 'A central ficou registada — obrigado!'}
+        </p>
+      </section>
+    )
+  }
+
+  // reclamado e já respondido pela administração
+  if (order.receiptStatus === 'disputado' && order.disputeResolvedAt) {
+    return (
+      <section
+        aria-labelledby="rd-title"
+        className="rounded-2xl border-2 border-emerald-300 bg-white p-4 shadow-sm"
+      >
+        <h3 id="rd-title" className="flex items-center gap-1.5 text-sm font-black text-navy">
+          <BadgeCheck className="h-4 w-4 text-emerald-600" /> Reclamação respondida pela administração
+        </h3>
+        <p className="mt-2 rounded-xl bg-secondary/70 p-2.5 text-xs italic leading-relaxed text-secondary-foreground">
+          “{order.disputeResolution ?? 'Caso analisado pela administração.'}”
+        </p>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          respondido {formatDateTime(order.disputeResolvedAt)}
+        </p>
+      </section>
+    )
+  }
+
+  // reclamado, à espera de resposta da administração
+  if (order.receiptStatus === 'disputado') {
+    return (
+      <section
+        aria-labelledby="rw-title"
+        className="rounded-2xl border-2 border-red-300 bg-red-50 p-4 text-center shadow-sm"
+      >
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-600 text-white shadow">
+          <PackageX className="h-6 w-6" />
+        </span>
+        <h3 id="rw-title" className="mt-2 text-sm font-black text-red-800">
+          Reclamação registada: não recebeu
+        </h3>
+        <p className="mt-1 text-xs leading-relaxed text-red-700">
+          A administração foi alertada com alarme sonoro {order.receiptDisputedAt ? `às ${formatDateTime(order.receiptDisputedAt)}` : ''} e vai
+          contactá-lo para resolver o caso.
+        </p>
+        {order.disputeReason && (
+          <p className="mt-2 rounded-xl bg-white/80 p-2.5 text-xs italic text-red-800">
+            “{order.disputeReason}”
+          </p>
+        )}
+      </section>
+    )
+  }
+
+  // à espera da resposta do cliente (receiptStatus === 'pendente')
+  return (
+    <section
+      aria-labelledby="rp-title"
+      className="rounded-2xl border-2 border-amber-300 bg-gradient-to-b from-amber-50 to-white p-4 shadow-md"
+    >
+      <div className="text-center">
+        <span className="mx-auto flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl bg-amber-500 text-white shadow">
+          <BadgeCheck className="h-6 w-6" />
+        </span>
+        <h3 id="rp-title" className="mt-2 text-base font-black text-navy">
+          Recebeu a sua água?
+        </h3>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          O entregador marcou este pedido como entregue
+          {order.deliveredAt ? ` às ${new Date(order.deliveredAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}` : ''}.
+          Confirme a recepção para proteger a sua encomenda — se não recebeu, a administração é
+          alertada de imediato.
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-2.5">
+        <Button
+          className="h-14 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-base font-black uppercase tracking-wide hover:brightness-110"
+          disabled={busy}
+          onClick={confirm}
+        >
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <BadgeCheck className="h-6 w-6" />}
+          Sim, recebi
+        </Button>
+        <Button
+          variant="outline"
+          className="h-12 rounded-2xl border-2 border-red-300 text-sm font-black text-red-700 hover:bg-red-50"
+          disabled={busy}
+          onClick={() => setDisputeOpen(true)}
+        >
+          <PackageX className="h-5 w-5" /> Não recebi — reclamar
+        </Button>
+      </div>
+
+      {/* dialog da reclamação: o cliente explica o que aconteceu */}
+      <Dialog open={disputeOpen} onOpenChange={setDisputeOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <ShieldAlert className="h-5 w-5" /> Não recebi a minha água
+            </DialogTitle>
+            <DialogDescription>
+              A sua reclamação chega à administração com alarme sonoro imediato. Descreva
+              (opcionalmente) o que aconteceu — ajuda a resolver mais depressa.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Ex.: o motoboy passou mas não entregou nada…"
+            maxLength={500}
+            className="min-h-24"
+          />
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDisputeOpen(false)} disabled={busy}>
+              Voltar
+            </Button>
+            <Button
+              className="bg-gradient-to-r from-red-600 to-rose-600 font-black"
+              disabled={busy}
+              onClick={dispute}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+              Enviar reclamação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
   )
 }

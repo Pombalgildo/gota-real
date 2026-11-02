@@ -103,7 +103,12 @@ export async function PATCH(
       if (order.status !== 'em_transito') {
         return NextResponse.json({ error: 'A entrega precisa estar em trânsito.' }, { status: 400 })
       }
-      await db.order.update({ where: { id }, data: { status: 'entregue', deliveredAt: now } })
+      // ANTI-BURLA: ao concluir, o pedido entra em “confirmação de recepção” —
+      // o cliente é alertado com som forte até CONFIRMAR que recebeu (ou reclamar)
+      await db.order.update({
+        where: { id },
+        data: { status: 'entregue', deliveredAt: now, receiptStatus: 'pendente' },
+      })
       if (order.courierId) {
         await db.courier.update({ where: { id: order.courierId }, data: { available: true } })
       }

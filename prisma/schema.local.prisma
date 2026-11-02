@@ -157,6 +157,14 @@ model Order {
   dispatchedAt  DateTime?
   deliveredAt   DateTime?
   cancelledAt   DateTime?
+  // ---------- Confirmação de recepção (anti-burla) ----------
+  // "pendente" | "confirmado" | "disputado"
+  receiptStatus      String?
+  receiptConfirmedAt DateTime?
+  receiptDisputedAt  DateTime?
+  disputeReason      String?
+  disputeResolution  String?
+  disputeResolvedAt  DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }

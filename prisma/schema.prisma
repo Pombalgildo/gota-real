@@ -158,8 +158,20 @@ model Order {
   dispatchedAt  DateTime?
   deliveredAt   DateTime?
   cancelledAt   DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  // ---------- Confirmação de recepção (anti-burla) ----------
+  // O motoboy marcou “entregue”? O cliente tem de CONFIRMAR que recebeu:
+  //   "pendente"  = à espera da confirmação do cliente
+  //   "confirmado" = o cliente confirmou que recebeu
+  //   "disputado"  = o cliente diz que NÃO recebeu (reclamação à central)
+  receiptStatus      String?
+  receiptConfirmedAt DateTime?
+  receiptDisputedAt  DateTime?
+  disputeReason      String?
+  /** resposta da administração à reclamação */
+  disputeResolution  String?
+  disputeResolvedAt  DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 }
 
 // ---------- Item do Pedido ----------

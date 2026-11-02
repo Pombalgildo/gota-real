@@ -30,9 +30,11 @@ import {
   Bell,
   BellRing,
   Bike,
+  ClipboardCheck,
   Eye,
   MessageSquareHeart,
   Package,
+  ShieldAlert,
   Smartphone,
   Truck,
   Volume2,
@@ -49,8 +51,10 @@ import {
  * visualizado ou recebe uma interacção (botão VER / FECHAR):
  *
  *   ADMIN + ATENDENTE → pedido novo (pendente) e mensagem nova do cliente
+ *                     + RECLAMAÇÃO: cliente diz que NÃO recebeu (anti-burla)
  *   MOTOBOY/MOTORISTA → entrega atribuída a ele e entregas canceladas
  *   CLIENTE           → cada mudança de estado do pedido e resposta à mensagem
+ *                     + CONFIRMAR RECEPÇÃO da entrega ( Recebi / Não recebi )
  *
  * Como a produção corre na Vercel sem WebSockets, a detecção é feita por
  * um polling leve (5 s) ao /api/events, que devolve apenas o que precisa
@@ -79,8 +83,8 @@ type NotifyPermission = 'granted' | 'denied' | 'default' | 'unsupported'
 interface AlertsApi {
   /** avisos por visualizar (som a tocar) */
   alerts: AppAlert[]
-  /** contagens para os badges (pedidos, mensagens, entregas) */
-  counts: { orders: number; messages: number; assigns: number }
+  /** contagens para os badges (pedidos, mensagens, entregas, reclamações) */
+  counts: { orders: number; messages: number; assigns: number; disputes: number }
   ack: (key: string) => void
   ackAll: () => void
   /** vê o aviso: reconhece, pára o som e navega até ao local certo */
@@ -158,6 +162,8 @@ const KIND_STYLE: Record<AlarmKind, { gradient: string; icon: typeof Package; la
   message: { gradient: 'from-blue-600 via-blue-500 to-indigo-700', icon: MessageSquareHeart, label: 'Mensagem' },
   status: { gradient: 'from-emerald-600 via-teal-500 to-teal-700', icon: Truck, label: 'Estado' },
   cancel: { gradient: 'from-red-700 via-rose-800 to-red-900', icon: XCircle, label: 'Cancelado' },
+  receipt: { gradient: 'from-emerald-500 via-lime-500 to-emerald-700', icon: ClipboardCheck, label: 'Recepção' },
+  dispute: { gradient: 'from-red-800 via-red-700 to-orange-900', icon: ShieldAlert, label: 'Reclamação' },
 }
 
 function orderAlert(o: EventOrder): AppAlert {
@@ -330,10 +336,29 @@ export function AlertCenter({ children }: { children: ReactNode }) {
         }
 
         if (scope.type === 'staff') {
-          // pedidos pendentes + mensagens abertas = precisam de acção agora
+          // pedidos pendentes + mensagens abertas + RECLAMAÇÕES de não
+          // recepção (anti-burla) = precisam de acção agora
           for (const o of data.orders) {
-            if (o.status !== 'pendente') continue
-            if (!store.acked.includes(`order-${o.id}`)) stateful.push(orderAlert(o))
+            if (o.status === 'pendente' && !store.acked.includes(`order-${o.id}`)) {
+              stateful.push(orderAlert(o))
+            }
+            // o cliente diz que NÃO recebeu a mercadoria — o alarme mais
+            // grave da app toca até a administração responder ao caso
+            if (
+              o.receiptStatus === 'disputado' &&
+              !store.acked.includes(`dispute-${o.id}`)
+            ) {
+              stateful.push({
+                key: `dispute-${o.id}`,
+                kind: 'dispute',
+                title: `BURLA? Cliente diz que NÃO recebeu o nº ${o.number}!`,
+                body: `${o.customer?.name ?? 'Cliente'} · ${o.customer?.phone ?? ''}${o.courier?.name ? ` · motoboy: ${o.courier.name}` : ''} — ${o.disputeReason ?? 'sem detalhes'}`,
+                orderId: o.id,
+                tab: 'pedidos',
+                stateful: true,
+                at: o.updatedAt,
+              })
+            }
           }
           for (const f of data.feedbacks) {
             if (f.status !== 'aberto') continue
@@ -378,6 +403,27 @@ export function AlertCenter({ children }: { children: ReactNode }) {
           // cliente: cada mudança de estado do SEU pedido + resposta à mensagem
           for (const o of data.orders) {
             const prev = store.orderStatus[o.id]
+
+            // ANTI-BURLA: o motoboy marcou a entrega como feita — o cliente
+            // tem de CONFIRMAR que recebeu (ou reclamar que não recebeu);
+            // o sino toca em loop até ele responder no ecrã de recepção
+            if (o.status === 'entregue' && o.receiptStatus === 'pendente') {
+              if (!store.acked.includes(`receipt-${o.id}`)) {
+                stateful.push({
+                  key: `receipt-${o.id}`,
+                  kind: 'receipt',
+                  title: `Recebeu o seu pedido nº ${o.number}?`,
+                  body: 'O entregador marcou a entrega como concluída. Confirme que recebeu a sua água 💧 — ou reclame se não recebeu nada.',
+                  orderId: o.id,
+                  tab: 'pedidos',
+                  stateful: true,
+                  at: o.updatedAt,
+                })
+              }
+              store.orderStatus[o.id] = o.status
+              continue
+            }
+
             // estados activos (confirmado / em trânsito) alarmam até serem
             // visualizados — mesmo que tenham chegado com a app fechada;
             // entregue / cancelado avisam uma vez, no momento da mudança
@@ -565,6 +611,7 @@ export function AlertCenter({ children }: { children: ReactNode }) {
       orders: alerts.filter((a) => a.kind === 'order').length,
       messages: alerts.filter((a) => a.kind === 'message').length,
       assigns: alerts.filter((a) => a.kind === 'assign').length,
+      disputes: alerts.filter((a) => a.kind === 'dispute').length,
     }),
     [alerts]
   )
@@ -714,6 +761,9 @@ export function AlertBell({ light = false }: { light?: boolean }) {
               <p className="text-sm font-black text-navy">Avisos de agora</p>
               <p className="text-[11px] text-muted-foreground">
                 {counts.orders} pedidos · {counts.messages} mensagens · {counts.assigns} entregas
+                {counts.disputes > 0 && (
+                  <span className="font-black text-red-700"> · {counts.disputes} reclamações</span>
+                )}
               </p>
             </div>
             <div className="max-h-72 overflow-y-auto custom-scrollbar">

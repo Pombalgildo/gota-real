@@ -156,6 +156,15 @@ export type OrderStatus =
   | 'entregue'
   | 'cancelado'
 
+/** Confirmação de recepção do cliente (anti-burla). */
+export type ReceiptStatus = 'pendente' | 'confirmado' | 'disputado'
+
+export const RECEIPT_STATUS_LABEL: Record<string, string> = {
+  pendente: 'Recepção pendente',
+  confirmado: 'Recepção confirmada',
+  disputado: 'Não recebido (reclamação)',
+}
+
 export type PaymentMethod = 'TPA' | 'CASH'
 
 export interface Order {
@@ -188,6 +197,13 @@ export interface Order {
   dispatchedAt?: string | null
   deliveredAt?: string | null
   cancelledAt?: string | null
+  // confirmação de recepção pelo cliente (anti-burla)
+  receiptStatus?: ReceiptStatus | string | null
+  receiptConfirmedAt?: string | null
+  receiptDisputedAt?: string | null
+  disputeReason?: string | null
+  disputeResolution?: string | null
+  disputeResolvedAt?: string | null
   createdAt: string
   updatedAt: string
 }

@@ -11,6 +11,8 @@
  *     message  → ding-dong (mensagem do cliente / resposta recebida)
  *     status   → dois tons (estado do pedido mudou para o cliente)
  *     cancel   → tom descendente (entrega/pedido cancelado)
+ *     receipt  → sino insistente (cliente tem de confirmar a recepção)
+ *     dispute  → alarme grave urgente (cliente diz que NÃO recebeu!)
  * - O som toca em LOOP e só pára com stopAlarm() — ou seja, quando o
  *   utilizador VÊ o aviso ou interage com ele (requisito do cliente)
  * - Vibração contínua no Android (navigator.vibrate)
@@ -18,7 +20,7 @@
  *   é desbloqueado no primeiro toque/clique em qualquer lado da app
  */
 
-export type AlarmKind = 'order' | 'assign' | 'message' | 'status' | 'cancel'
+export type AlarmKind = 'order' | 'assign' | 'message' | 'status' | 'cancel' | 'receipt' | 'dispute'
 
 interface Note {
   /** frequência em Hz */
@@ -90,13 +92,38 @@ const PATTERNS: Record<AlarmKind, Pattern> = {
     ],
     vibrate: [300, 150, 300],
   },
+  // confirmação de recepção: sino insistente (anti-burla — o cliente
+  // tem de responder RECEBI ou NÃO RECEBI; toca até responder)
+  receipt: {
+    period: 1700,
+    notes: [
+      { f: 1174, d: 0.16, wave: 'triangle', g: 1 },
+      { f: 1568, d: 0.16, at: 0.22, wave: 'triangle', g: 1 },
+      { f: 1174, d: 0.16, at: 0.44, wave: 'triangle', g: 1 },
+      { f: 1568, d: 0.22, at: 0.66, wave: 'triangle', g: 1 },
+    ],
+    vibrate: [200, 100, 200, 100, 350],
+  },
+  // RECLAMAÇÃO de não recepção: alarme grave e urgente na central —
+  // a administração precisa de agir (possível burla na entrega)
+  dispute: {
+    period: 1300,
+    notes: [
+      { f: 220, sweepTo: 660, d: 0.42, wave: 'sawtooth', g: 1 },
+      { f: 660, sweepTo: 220, d: 0.42, at: 0.48, wave: 'sawtooth', g: 1 },
+    ],
+    vibrate: [600, 120, 600],
+  },
 }
 
-// prioridade quando há vários alarmes: a sirene do motoboy e o pedido
-// novo mandam mais do que uma simples mudança de estado
+// prioridade quando há vários alarmes: a reclamação de não recepção
+// (possível burla) manda sobre tudo; depois a sirene do motoboy e o
+// pedido novo; a confirmação de recepção do cliente também é urgente
 const PRIORITY: Record<AlarmKind, number> = {
+  dispute: 6,
   assign: 5,
   order: 4,
+  receipt: 3,
   cancel: 3,
   message: 2,
   status: 1,

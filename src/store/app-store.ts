@@ -6,9 +6,9 @@ import type { CartItem, Customer, Product, User } from '@/lib/types'
 
 export type AppMode = 'cliente' | 'central' | 'motoboy'
 export type CustomerTab = 'inicio' | 'produtos' | 'pedidos' | 'feedback' | 'perfil'
-/** Abas da Central (pedidos/mensagens/loja/perfis/ajustes) — controladas
+/** Abas da Central (pedidos/mensagens/relatórios/loja/perfis/ajustes) — controladas
  *  para que o alarme possa levar a equipa directo ao aviso. */
-export type CentralTab = 'pedidos' | 'feedback' | 'produtos' | 'perfis' | 'ajustes'
+export type CentralTab = 'pedidos' | 'feedback' | 'relatorios' | 'produtos' | 'perfis' | 'ajustes'
 
 export interface AuthSession {
   token: string

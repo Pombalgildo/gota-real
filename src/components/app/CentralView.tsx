@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore, formatKz, formatLiters, formatTime, formatDateTime, durationMinutes } from '@/store/app-store'
 import { useAllOrders, useFeedback, useCouriers, useProducts, useUsers, useStoreConfig } from '@/components/app/hooks'
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
@@ -9,12 +9,14 @@ import { ProductPhoto } from '@/components/app/ProductPhoto'
 import { Avatar, PhotoPicker } from '@/components/app/Avatar'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { resizeImageToDataUrl } from '@/lib/image'
+import { fetchReports, type ReportData } from '@/lib/api'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { InstallPrompt } from '@/components/app/InstallPrompt'
 import { AlertBell, AlertsSettingsCard } from '@/components/app/AlertCenter'
 import {
   orderAction,
   respondFeedback,
+  resolveDispute,
   updateProduct,
   createProduct,
   createUser as apiCreateUser,
@@ -38,13 +40,17 @@ import { cn } from '@/lib/utils'
 import {
   ArrowLeft,
   Ban,
+  BarChart3,
   Bike,
   Building2,
   Camera,
   Car,
   Check,
+  ChevronRight,
+  ClipboardCheck,
   ClipboardList,
   Clock,
+  Droplets,
   Headset,
   ImagePlus,
   KeyRound,
@@ -56,9 +62,11 @@ import {
   PenLine,
   Phone,
   Plus,
+  Printer,
   Reply,
   Save,
   Send,
+  ShieldAlert,
   ShieldCheck,
   Store,
   Timer,
@@ -81,6 +89,8 @@ const FILTERS = [
   { key: 'em_transito', label: 'Em trânsito' },
   { key: 'entregue', label: 'Entregues' },
   { key: 'cancelado', label: 'Cancelados' },
+  // anti-burla: entregas que o cliente diz NÃO ter recebido
+  { key: 'reclamacao', label: '⚠️ Reclamações' },
 ]
 
 export function CentralView() {
@@ -205,6 +215,7 @@ function CentralTabs({ role }: { role: string }) {
   const tabs = [
     ...(canManageOrders ? [{ value: 'pedidos', label: 'Pedidos', icon: ClipboardList }] : []),
     ...(canManageOrders ? [{ value: 'feedback', label: 'Mensagens', icon: MessageSquareWarning }] : []),
+    ...(canManageOrders ? [{ value: 'relatorios', label: 'Relatórios', icon: BarChart3 }] : []),
     ...(canManageCatalog ? [{ value: 'produtos', label: 'Loja', icon: Store }] : []),
     ...(isAdmin ? [{ value: 'perfis', label: 'Perfis', icon: Users }] : []),
     ...(isAdmin ? [{ value: 'ajustes', label: 'Ajustes', icon: Building2 }] : []),
@@ -219,7 +230,9 @@ function CentralTabs({ role }: { role: string }) {
           'grid h-auto w-full gap-1.5 rounded-xl bg-secondary p-1.5',
           tabs.length === 1 && 'grid-cols-1',
           tabs.length === 2 && 'grid-cols-2',
-          tabs.length >= 3 && 'grid-cols-3 sm:grid-cols-5'
+          tabs.length === 3 && 'grid-cols-3',
+          tabs.length === 4 && 'grid-cols-3 sm:grid-cols-4',
+          tabs.length >= 5 && 'grid-cols-3 sm:grid-cols-6'
         )}
       >
         {tabs.map((t) => (
@@ -240,6 +253,9 @@ function CentralTabs({ role }: { role: string }) {
       <TabsContent value="feedback" className="mt-4">
         <FeedbackPanel />
       </TabsContent>
+      <TabsContent value="relatorios" className="mt-4">
+        <ReportsPanel />
+      </TabsContent>
       <TabsContent value="produtos" className="mt-4">
         <ProductsPanel />
       </TabsContent>
@@ -259,11 +275,18 @@ function OrdersPanel() {
   const [filter, setFilter] = useState('todos')
   const [detail, setDetail] = useState<Order | null>(null)
 
-  const filtered = filter === 'todos' ? orders : orders.filter((o) => o.status === filter)
+  // "reclamacao" = cliente disse que NÃO recebeu e a central ainda não respondeu
+  const filtered =
+    filter === 'todos'
+      ? orders
+      : filter === 'reclamacao'
+        ? orders.filter((o) => o.receiptStatus === 'disputado' && !o.disputeResolvedAt)
+        : orders.filter((o) => o.status === filter)
+  const openDisputes = orders.filter((o) => o.receiptStatus === 'disputado' && !o.disputeResolvedAt).length
   const detailLive = detail ? orders.find((o) => o.id === detail.id) ?? detail : null
 
   if (detailLive) {
-    return <CentralOrderDetail order={detailLive} onBack={() => setDetail(null)} />
+    return <CentralOrderDetail order={detailLive} onBack={() => setDetail(null)} onUpdated={reload} />
   }
 
   return (
@@ -278,10 +301,18 @@ function OrdersPanel() {
               'rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all',
               filter === f.key
                 ? 'border-primary bg-primary text-white shadow-sm'
-                : 'border-border bg-white text-muted-foreground hover:border-input'
+                : 'border-border bg-white text-muted-foreground hover:border-input',
+              f.key === 'reclamacao' && openDisputes > 0 && filter !== f.key
+                ? 'border-red-300 bg-red-50 text-red-700'
+                : ''
             )}
           >
             {f.label}
+            {f.key === 'reclamacao' && openDisputes > 0 && (
+              <span className="ml-1.5 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white">
+                {openDisputes}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -374,6 +405,20 @@ function CentralOrderCard({ order, onOpen }: { order: Order; onOpen: () => void 
             </span>
           </p>
         )}
+        {order.receiptStatus === 'disputado' && !order.disputeResolvedAt && (
+          <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-100 px-2 py-1.5 text-[11px] font-black text-red-700">
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 truncate">
+              CLIENTE DIZ QUE NÃO RECEBEU — responder
+            </span>
+          </p>
+        )}
+        {order.status === 'entregue' && order.receiptStatus === 'pendente' && (
+          <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-100 px-2 py-1.5 text-[11px] font-bold text-amber-800">
+            <ClipboardCheck className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 truncate">à espera da confirmação do cliente</span>
+          </p>
+        )}
       </button>
 
       {/* acções rápidas */}
@@ -444,7 +489,7 @@ function CentralOrderCard({ order, onOpen }: { order: Order; onOpen: () => void 
   )
 }
 
-function CentralOrderDetail({ order, onBack }: { order: Order; onBack: () => void }) {
+function CentralOrderDetail({ order, onBack, onUpdated }: { order: Order; onBack: () => void; onUpdated?: () => void }) {
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack} className="font-bold">
@@ -521,7 +566,147 @@ function CentralOrderDetail({ order, onBack }: { order: Order; onBack: () => voi
           </p>
         )}
       </div>
+
+      {/* ANTI-BURLA: confirmação de recepção do cliente e reclamações */}
+      {order.status === 'entregue' && <CentralReceiptSection order={order} onUpdated={onUpdated} />}
     </div>
+  )
+}
+
+/* -------- Confirmação de recepção (anti-burla) na Central -------- */
+function CentralReceiptSection({ order, onUpdated }: { order: Order; onUpdated?: () => void }) {
+  const { toast } = useToast()
+  const { auth } = useAppStore()
+  const [busy, setBusy] = useState(false)
+  const [resolveOpen, setResolveOpen] = useState(false)
+  const [resolution, setResolution] = useState('')
+
+  async function resolve() {
+    setBusy(true)
+    try {
+      await resolveDispute(auth?.token ?? '', order.id, resolution.trim())
+      setResolveOpen(false)
+      setResolution('')
+      toast({ title: 'Reclamação respondida ✅', description: 'A resposta ficou registada e o cliente foi notificado.' })
+      onUpdated?.()
+    } catch (err) {
+      toast({
+        title: 'Erro ao responder',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disputed = order.receiptStatus === 'disputado'
+  const resolved = disputed && order.disputeResolvedAt != null
+
+  return (
+    <section
+      aria-labelledby="cr-title"
+      className={cn(
+        'rounded-2xl border-2 p-4 shadow-sm',
+        disputed ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'
+      )}
+    >
+      <h3 id="cr-title" className="flex items-center gap-1.5 text-sm font-black text-navy">
+        {disputed ? (
+          <ShieldAlert className="h-4 w-4 text-red-600" />
+        ) : (
+          <ClipboardCheck className="h-4 w-4 text-emerald-600" />
+        )}
+        Confirmação de recepção (anti-burla)
+      </h3>
+
+      {!order.receiptStatus && (
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          Pedido entregue antes do sistema de confirmação — sem registo de recepção.
+        </p>
+      )}
+
+      {order.receiptStatus === 'pendente' && (
+        <p className="mt-2 text-xs leading-relaxed text-amber-800">
+          ⏳ O cliente ainda não confirmou. O alarme dele continua a tocar até responder
+          <b> Recebi </b> ou <b> Não recebi</b>.
+        </p>
+      )}
+
+      {order.receiptStatus === 'confirmado' && (
+        <p className="mt-2 text-xs leading-relaxed text-emerald-800">
+          ✅ O cliente confirmou que recebeu
+          {order.receiptConfirmedAt ? ` em ${formatDateTime(order.receiptConfirmedAt)}` : ''}. Entrega validada.
+        </p>
+      )}
+
+      {disputed && (
+        <>
+          <p className="mt-2 text-xs font-black text-red-700">
+            ❌ O cliente diz que NÃO recebeu esta entrega!
+          </p>
+          <p className="mt-1.5 rounded-xl bg-white/80 p-2.5 text-xs italic leading-relaxed text-red-800">
+            “{order.disputeReason ?? 'sem detalhes'}”
+          </p>
+          <p className="mt-1.5 text-[11px] text-red-600">
+            reclamação {formatDateTime(order.receiptDisputedAt)}
+            {order.courier ? ` · entregador: ${order.courier.name}` : ''}
+          </p>
+
+          {resolved ? (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3">
+              <p className="text-xs font-black text-emerald-700">Caso respondido pela administração</p>
+              <p className="mt-1 text-xs italic leading-relaxed text-foreground/80">
+                “{order.disputeResolution ?? 'Caso analisado pela administração.'}”
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                respondido {formatDateTime(order.disputeResolvedAt)}
+              </p>
+            </div>
+          ) : (
+            <Button
+              className="mt-3 h-11 w-full rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 font-black"
+              disabled={busy}
+              onClick={() => setResolveOpen(true)}
+            >
+              <ShieldCheck className="h-5 w-5" /> Responder e fechar o caso
+            </Button>
+          )}
+
+          <Dialog open={resolveOpen} onOpenChange={setResolveOpen}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Responder à reclamação do nº {order.number}</DialogTitle>
+                <DialogDescription>
+                  Descreva a resolução (contacto com o cliente, reentrega, esclarecimento…). A
+                  resposta fica visível ao cliente no pedido dele.
+                </DialogDescription>
+              </DialogHeader>
+              <Textarea
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
+                placeholder="Ex.: contactámos o cliente e reagendámos a entrega para hoje."
+                maxLength={500}
+                className="min-h-24"
+              />
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setResolveOpen(false)} disabled={busy}>
+                  Voltar
+                </Button>
+                <Button
+                  className="bg-gradient-to-r from-red-600 to-rose-600 font-black"
+                  disabled={busy}
+                  onClick={resolve}
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Enviar resposta
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+    </section>
   )
 }
 
@@ -1885,3 +2070,286 @@ function StoreSettingsPanel() {
     </div>
   )
 }
+
+/* ==================================================================== */
+/* RELATÓRIOS DE ACTIVIDADE — diário / semanal / mensal                 */
+/* Ferramenta do administrador e dos gestores (atendente) para seguir   */
+/* a actividade da empresa: pedidos, faturação, entregadores, produtos  */
+/* e alertas de não recepção. Impressão/PDF com um toque.               */
+/* ==================================================================== */
+type ReportPeriod = 'daily' | 'weekly' | 'monthly'
+
+const REPORT_PERIODS: { key: ReportPeriod; label: string }[] = [
+  { key: 'daily', label: 'Diário' },
+  { key: 'weekly', label: 'Semanal' },
+  { key: 'monthly', label: 'Mensal' },
+]
+
+function ReportsPanel() {
+  const { auth } = useAppStore()
+  const [period, setPeriod] = useState<ReportPeriod>('daily')
+  const [ref, setRef] = useState(() => new Date().toISOString().slice(0, 10))
+  const [report, setReport] = useState<ReportData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  async function load(p: ReportPeriod, r: string) {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await fetchReports(auth?.token ?? '', p, r)
+      setReport(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sem ligação ao servidor.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // carrega na montagem e sempre que o período ou a data mudam
+  useEffect(() => {
+    load(period, ref)
+  }, [period, ref])
+
+  function shift(days: number, months = 0) {
+    const d = new Date(`${ref}T12:00:00Z`)
+    d.setUTCDate(d.getUTCDate() + days)
+    d.setUTCMonth(d.getUTCMonth() + months)
+    setRef(d.toISOString().slice(0, 10))
+  }
+
+  function shiftPeriod(dir: 1 | -1) {
+    if (period === 'daily') shift(dir)
+    else if (period === 'weekly') shift(7 * dir)
+    else shift(0, dir)
+  }
+
+  const isToday = ref === new Date().toISOString().slice(0, 10)
+
+  return (
+    <div className="space-y-4">
+      {/* selector de período */}
+      <div className="rounded-2xl border border-border bg-white p-3 shadow-sm print:border-0 print:shadow-none">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <div className="flex rounded-xl bg-secondary p-1">
+            {REPORT_PERIODS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setPeriod(p.key)}
+                className={cn(
+                  'rounded-lg px-3.5 py-2 text-xs font-black transition-all',
+                  period === p.key ? 'bg-white text-navy shadow' : 'text-muted-foreground'
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button size="icon" variant="outline" className="h-9 w-9 rounded-xl" aria-label="Período anterior" onClick={() => shiftPeriod(-1)}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            {!isToday && (
+              <Button size="sm" variant="secondary" className="h-9 rounded-xl text-xs font-bold" onClick={() => setRef(new Date().toISOString().slice(0, 10))}>
+                Hoje
+              </Button>
+            )}
+            <Button size="icon" variant="outline" className="h-9 w-9 rounded-xl" aria-label="Período seguinte" disabled={isToday} onClick={() => shiftPeriod(1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="outline" className="h-9 rounded-xl text-xs font-bold" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" /> Imprimir / PDF
+            </Button>
+          </div>
+        </div>
+        {report && (
+          <p className="mt-2 text-center text-sm font-black capitalize text-navy">
+            {report.label}
+          </p>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col items-center rounded-2xl border border-border bg-white py-14 text-muted-foreground">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+          <p className="mt-2 text-sm font-semibold">a preparar o relatório…</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-red-300 bg-red-50/70 py-10 text-center">
+          <WifiOff className="h-8 w-8 text-red-400" />
+          <p className="mt-2 text-sm font-black text-red-700">{error}</p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={() => load(period, ref)}>
+            <RefreshCw className="h-4 w-4" /> Tentar novamente
+          </Button>
+        </div>
+      ) : report ? (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <ReportKpi icon={ClipboardList} label="pedidos" value={String(report.kpis.ordersTotal)} accent="text-primary bg-secondary" />
+            <ReportKpi icon={Check} label="entregues" value={String(report.kpis.delivered)} accent="text-emerald-600 bg-emerald-100" />
+            <ReportKpi icon={TrendingUp} label="faturação entregue" value={formatKz(report.kpis.revenueKz)} accent="text-gold bg-gold/15" />
+            <ReportKpi icon={Droplets} label="água entregue" value={formatLiters(report.kpis.liters)} accent="text-primary bg-secondary" />
+            <ReportKpi icon={Timer} label="tempo médio" value={report.kpis.avgDeliveryMin != null ? `${report.kpis.avgDeliveryMin} min` : '—'} accent="text-navy bg-secondary" />
+            <ReportKpi icon={XCircle} label="cancelados" value={String(report.kpis.cancelled)} accent="text-red-600 bg-red-100" />
+            <ReportKpi icon={Users} label="novos clientes" value={String(report.kpis.newCustomers)} accent="text-emerald-600 bg-emerald-100" />
+            <ReportKpi icon={MessageSquareWarning} label="mensagens" value={String(report.kpis.messages)} accent="text-amber-600 bg-amber-100" />
+            <ReportKpi
+              icon={ShieldAlert}
+              label="reclamações de entrega"
+              value={`${report.kpis.disputesOpen} aberta${report.kpis.disputesOpen === 1 ? '' : 's'}`}
+              accent={report.kpis.disputesOpen > 0 ? 'text-red-600 bg-red-100' : 'text-emerald-600 bg-emerald-100'}
+            />
+          </div>
+
+          {/* recepções confirmadas (anti-burla) */}
+          <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+            <h4 className="flex items-center gap-1.5 text-sm font-black text-navy">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" /> Confirmações de recepção (anti-burla)
+            </h4>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-emerald-50 p-2.5">
+                <p className="text-lg font-black text-emerald-700">{report.kpis.receiptsConfirmed}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">confirmadas</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 p-2.5">
+                <p className="text-lg font-black text-amber-700">{report.kpis.receiptsPending}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-amber-600">pendentes</p>
+              </div>
+              <div className="rounded-xl bg-red-50 p-2.5">
+                <p className="text-lg font-black text-red-700">{report.kpis.disputesOpen + report.kpis.disputesResolved}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-red-600">
+                  disputas ({report.kpis.disputesResolved} respondidas)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* gráfico de actividade */}
+          <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+            <h4 className="flex items-center gap-1.5 text-sm font-black text-navy">
+              <BarChart3 className="h-4 w-4 text-primary" /> Actividade {period === 'daily' ? 'do dia (por hora)' : period === 'weekly' ? 'da semana' : 'do mês'}
+            </h4>
+            <ReportChart series={report.series} />
+          </div>
+
+          {/* topo de produtos */}
+          <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+            <h4 className="flex items-center gap-1.5 text-sm font-black text-navy">
+              <Package className="h-4 w-4 text-primary" /> Produtos mais pedidos
+            </h4>
+            {report.topProducts.length === 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">Sem vendas neste período.</p>
+            ) : (
+              <ul className="mt-2.5 space-y-1.5">
+                {report.topProducts.map((p, i) => (
+                  <li key={p.name} className="flex items-center gap-2.5 text-xs">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-secondary font-black text-primary">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-bold text-foreground">{p.name}</span>
+                    <span className="shrink-0 text-muted-foreground">{p.quantity} un.</span>
+                    <b className="shrink-0 text-navy">{formatKz(p.revenueKz)}</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* entregadores */}
+          <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+            <h4 className="flex items-center gap-1.5 text-sm font-black text-navy">
+              <Bike className="h-4 w-4 text-gold" /> Desempenho dos entregadores
+            </h4>
+            {report.couriers.length === 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">Sem entregas concluídas neste período.</p>
+            ) : (
+              <ul className="mt-2.5 space-y-1.5">
+                {report.couriers.map((c, i) => (
+                  <li key={c.name} className="flex items-center gap-2.5 text-xs">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gold/20 font-black text-[#6B5410]">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-bold text-foreground">{c.name}</span>
+                    <span className="shrink-0 text-muted-foreground">{c.deliveries} entregas</span>
+                    <b className="shrink-0 text-navy">{c.avgMin != null ? `~${c.avgMin} min` : '—'}</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* pagamentos */}
+          <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+            <h4 className="flex items-center gap-1.5 text-sm font-black text-navy">
+              <ClipboardCheck className="h-4 w-4 text-primary" /> Pagamentos recebidos
+            </h4>
+            {report.payments.length === 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">Sem entregas pagas neste período.</p>
+            ) : (
+              <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+                {report.payments.map((p) => (
+                  <div key={p.method} className="flex items-center justify-between rounded-xl bg-secondary/60 px-3 py-2.5 text-xs">
+                    <span className="font-bold text-foreground">
+                      {p.method === 'TPA' ? 'TPA (cartão)' : 'Dinheiro (cash)'}
+                    </span>
+                    <span className="text-muted-foreground">{p.count}× · <b className="text-navy">{formatKz(p.revenueKz)}</b></span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <p className="pb-2 text-center text-[10px] text-muted-foreground print:hidden">
+            gerado {formatDateTime(report.generatedAt)} · Gota REAL 👑
+          </p>
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+/** KPI individual do relatório. */
+function ReportKpi({ icon: Icon, label, value, accent }: { icon: typeof Package; label: string; value: string; accent: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-white p-3 shadow-md">
+      <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', accent)}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <p className="mt-2 truncate text-lg font-black leading-none text-navy">{value}</p>
+      <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+    </div>
+  )
+}
+
+/** Gráfico de barras leve (CSS puro — sem bibliotecas, imprime bem). */
+function ReportChart({ series }: { series: ReportData['series'] }) {
+  const max = Math.max(1, ...series.map((s) => s.orders))
+  const any = series.some((s) => s.orders > 0)
+  if (!any) {
+    return <p className="mt-2 text-xs text-muted-foreground">Sem pedidos neste período.</p>
+  }
+  return (
+    <div className="mt-3 overflow-x-auto custom-scrollbar">
+      <div className="flex min-w-full items-end gap-1" style={{ height: 120 }}>
+        {series.map((s) => (
+          <div key={s.key} className="flex min-w-4 flex-1 flex-col items-center justify-end gap-1" title={`${s.label}: ${s.orders} pedidos (${s.delivered} entregues)`}>
+            <span className="text-[9px] font-bold text-muted-foreground">{s.orders > 0 ? s.orders : ''}</span>
+            <div
+              className={cn(
+                'w-full rounded-t-sm',
+                s.orders > 0 ? 'bg-gradient-to-t from-primary to-teal-400' : 'bg-secondary'
+              )}
+              style={{ height: `${Math.max(3, (s.orders / max) * 88)}%` }}
+            />
+            <span className="text-[8px] font-bold text-muted-foreground">{s.label}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[10px] font-semibold text-muted-foreground">
+        barras = pedidos recebidos · passe o dedo/rato para ver os valores
+      </p>
+    </div>
+  )
+}
+
