@@ -8,6 +8,7 @@ import { PaymentBadge } from '@/components/app/Badges'
 import { Avatar } from '@/components/app/Avatar'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { InstallPrompt } from '@/components/app/InstallPrompt'
+import { AlertBell } from '@/components/app/AlertCenter'
 import { orderAction, updateCourier } from '@/lib/api'
 import { emitCourierMove, getRealtimeSocket } from '@/lib/realtime-client'
 import {
@@ -154,6 +155,8 @@ function MotoboyPanel({ courierName, isDriver }: { courierName?: string; isDrive
               {courierName ?? courier?.name ?? (isDriver ? 'Motorista' : 'Motoboy')}
             </h1>
           </div>
+          {/* sino dos avisos: entrega atribuída toca a sirene até visualizar */}
+          <AlertBell light />
           <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
             <span className="live-dot" /> ao vivo
           </span>

@@ -6,6 +6,9 @@ import type { CartItem, Customer, Product, User } from '@/lib/types'
 
 export type AppMode = 'cliente' | 'central' | 'motoboy'
 export type CustomerTab = 'inicio' | 'produtos' | 'pedidos' | 'feedback' | 'perfil'
+/** Abas da Central (pedidos/mensagens/loja/perfis/ajustes) — controladas
+ *  para que o alarme possa levar a equipa directo ao aviso. */
+export type CentralTab = 'pedidos' | 'feedback' | 'produtos' | 'perfis' | 'ajustes'
 
 export interface AuthSession {
   token: string
@@ -21,6 +24,7 @@ interface AppState {
 
   // navegação
   tab: CustomerTab
+  centralTab: CentralTab
   checkoutOpen: boolean
   trackingOrderId: string | null
 
@@ -33,6 +37,7 @@ interface AppState {
   setMode: (m: AppMode) => void
   setCourierId: (id: string | null) => void
   setTab: (t: CustomerTab) => void
+  setCentralTab: (t: CentralTab) => void
   setCheckoutOpen: (open: boolean) => void
   openTracking: (orderId: string | null) => void
   // termina a sessão e limpa o estado deste dispositivo
@@ -55,6 +60,7 @@ export const useAppStore = create<AppState>()(
       mode: 'cliente',
       courierId: null,
       tab: 'inicio',
+      centralTab: 'pedidos',
       checkoutOpen: false,
       trackingOrderId: null,
       cart: [],
@@ -64,6 +70,7 @@ export const useAppStore = create<AppState>()(
       setMode: (mode) => set({ mode }),
       setCourierId: (courierId) => set({ courierId }),
       setTab: (tab) => set({ tab }),
+      setCentralTab: (centralTab) => set({ centralTab }),
       setCheckoutOpen: (checkoutOpen) => set({ checkoutOpen }),
       openTracking: (trackingOrderId) =>
         set({ trackingOrderId, tab: trackingOrderId ? 'pedidos' : 'inicio' }),
@@ -74,6 +81,7 @@ export const useAppStore = create<AppState>()(
           mode: 'cliente',
           courierId: null,
           tab: 'inicio',
+          centralTab: 'pedidos',
           checkoutOpen: false,
           trackingOrderId: null,
           cart: [],
@@ -129,6 +137,7 @@ export const useAppStore = create<AppState>()(
         customer: state.customer,
         mode: state.mode,
         courierId: state.courierId,
+        centralTab: state.centralTab,
         cart: state.cart,
       }),
     }

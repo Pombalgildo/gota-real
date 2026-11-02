@@ -11,6 +11,7 @@ import { LocationPicker, type PickedLocation } from '@/components/app/LocationPi
 import { resizeImageToDataUrl } from '@/lib/image'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { InstallPrompt } from '@/components/app/InstallPrompt'
+import { AlertBell, AlertsSettingsCard } from '@/components/app/AlertCenter'
 import {
   orderAction,
   respondFeedback,
@@ -118,6 +119,9 @@ export function CentralView() {
             </p>
             <h1 className="text-lg font-black leading-tight">Central Gota REAL 👑</h1>
           </div>
+          {/* sino dos avisos: pedido novo e mensagem nova tocam
+              o alarme sonoro até a equipa visualizar */}
+          <AlertBell light />
           <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-white/25">
             <span className="live-dot" /> ao vivo
           </span>
@@ -190,6 +194,10 @@ function CentralStats({ role }: { role: string }) {
 }
 
 function CentralTabs({ role }: { role: string }) {
+  // aba activa guardada na loja global: o alarme sonoro consegue levar
+  // a equipa directo ao pedido/mensagem que originou o aviso
+  const centralTab = useAppStore((s) => s.centralTab)
+  const setCentralTab = useAppStore((s) => s.setCentralTab)
   // abas conforme o perfil: só o ADMIN vê Perfis e Ajustes
   const canManageOrders = ORDER_MANAGER_ROLES.includes(role)
   const canManageCatalog = CATALOG_ROLES.includes(role)
@@ -202,9 +210,10 @@ function CentralTabs({ role }: { role: string }) {
     ...(isAdmin ? [{ value: 'ajustes', label: 'Ajustes', icon: Building2 }] : []),
   ]
   const defaultTab = tabs[0]?.value ?? 'pedidos'
+  const activeTab = tabs.some((t) => t.value === centralTab) ? centralTab : defaultTab
 
   return (
-    <Tabs defaultValue={defaultTab}>
+    <Tabs value={activeTab} onValueChange={(v) => setCentralTab(v as typeof centralTab)}>
       <TabsList
         className={cn(
           'grid h-auto w-full gap-1.5 rounded-xl bg-secondary p-1.5',
@@ -1870,6 +1879,9 @@ function StoreSettingsPanel() {
           GUARDAR DADOS DA LOJA
         </Button>
       </div>
+
+      {/* alarmes sonoros da central: pedido novo, mensagem nova… */}
+      <AlertsSettingsCard />
     </div>
   )
 }

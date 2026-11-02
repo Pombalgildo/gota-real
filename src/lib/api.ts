@@ -297,3 +297,52 @@ export function respondFeedback(token: string, id: string, response: string) {
     body: JSON.stringify({ response }),
   })
 }
+
+// ---------- Centro de alertas (sons fortes) ----------
+/** Registo enxuto de um pedido vigiado pelo centro de alertas. */
+export interface EventOrder {
+  id: string
+  number: number
+  status: string
+  totalKz?: number
+  totalLiters?: number
+  address?: string
+  requestedAt: string
+  updatedAt: string
+  customer?: { id: string; name: string; phone: string } | null
+}
+
+/** Registo enxuto de uma mensagem vigiada pelo centro de alertas. */
+export interface EventFeedback {
+  id: string
+  type: string
+  subject: string
+  status: string
+  createdAt: string
+  respondedAt?: string | null
+  customer?: { id: string; name: string; phone: string } | null
+}
+
+/**
+ * Alimentação do centro de alertas: devolve apenas o que precisa de
+ * atenção agora, conforme o papel (equipa, entregador ou cliente).
+ */
+export function fetchEvents(params: {
+  token?: string | null
+  courierId?: string | null
+  customerId?: string | null
+}) {
+  const q = new URLSearchParams()
+  if (params.courierId) q.set('courierId', params.courierId)
+  if (params.customerId) q.set('customerId', params.customerId)
+  const qs = q.toString()
+  return request<{
+    serverTime: string
+    scope: 'staff' | 'courier' | 'customer' | 'none'
+    orders: EventOrder[]
+    feedbacks: EventFeedback[]
+  }>(`/api/events${qs ? `?${qs}` : ''}`, {
+    headers: params.token ? { Authorization: `Bearer ${params.token}` } : undefined,
+  })
+}
+

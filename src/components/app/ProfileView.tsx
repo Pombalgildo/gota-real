@@ -5,6 +5,7 @@ import { useAppStore, formatDateTime } from '@/store/app-store'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { InstallAppCard } from '@/components/app/InstallPrompt'
+import { AlertsSettingsCard } from '@/components/app/AlertCenter'
 import { DropCrownIcon } from '@/components/app/Brand'
 import { Avatar } from '@/components/app/Avatar'
 import { updateCustomer } from '@/lib/api'
@@ -409,6 +410,9 @@ export function ProfileView() {
           </div>
         )}
       </div>
+
+      {/* ---------- ALERTAS COM SOM FORTE (estado do pedido, respostas) ---------- */}
+      <AlertsSettingsCard />
 
       {/* ---------- INSTALAR A APP NO TELEMOVEL ---------- */}
       <InstallAppCard />

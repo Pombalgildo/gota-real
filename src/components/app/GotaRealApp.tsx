@@ -17,6 +17,7 @@ import { InstallPrompt, InstallPromptSpacer } from '@/components/app/InstallProm
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { BrandLogo } from '@/components/app/Brand'
 import { Avatar } from '@/components/app/Avatar'
+import { AlertCenter, AlertCountBadge, useAlerts } from '@/components/app/AlertCenter'
 import { getRealtimeSocket } from '@/lib/realtime-client'
 import { cn } from '@/lib/utils'
 import type { CustomerTab } from '@/store/app-store'
@@ -64,13 +65,29 @@ export function GotaRealApp() {
   // PAINÉIS DA EQUIPA — abertos com o login do próprio perfil:
   // ADMIN/ATENDENTE/EDITOR entram na Central (com abas conforme o perfil),
   // MOTOBOY/MOTORISTA entram nas entregas
+  // O AlertCenter envolve tudo: vigia pedidos/mensagens/entregas e toca
+  // o alarme sonoro até o aviso ser visualizado
   const role = auth?.user.role
-  if ((CENTRAL_ROLES as string[]).includes(role ?? '')) return <CentralView />
-  if ((DELIVERY_ROLES as string[]).includes(role ?? '')) return <MotoboyView />
+  if ((CENTRAL_ROLES as string[]).includes(role ?? ''))
+    return (
+      <AlertCenter>
+        <CentralView />
+      </AlertCenter>
+    )
+  if ((DELIVERY_ROLES as string[]).includes(role ?? ''))
+    return (
+      <AlertCenter>
+        <MotoboyView />
+      </AlertCenter>
+    )
 
   if (!customer) return <OnboardingView />
 
-  return <CustomerApp />
+  return (
+    <AlertCenter>
+      <CustomerApp />
+    </AlertCenter>
+  )
 }
 
 /** Ecrã mostrado ao cliente banido por má conduta. */
@@ -101,6 +118,10 @@ function BannedScreen() {
 function CustomerApp() {
   const { customer, tab, setTab, cart, setCheckoutOpen, syncCartProducts, setCustomer } = useAppStore()
   const { products } = useProducts()
+  // avisos do cliente: mudanças de estado dos pedidos + respostas às mensagens
+  const { alerts } = useAlerts()
+  const orderAlertCount = alerts.filter((a) => a.kind === 'status' || a.kind === 'cancel').length
+  const messageAlertCount = alerts.filter((a) => a.kind === 'message').length
   const totals = cartTotals(cart)
   const firstName = customer?.name?.split(' ')[0] ?? 'cliente'
 
@@ -231,6 +252,10 @@ function CustomerApp() {
                       {cart.reduce((s, i) => s + i.quantity, 0)}
                     </span>
                   )}
+                  {/* sino nos pedidos: o estado do pedido mudou (som a tocar) */}
+                  {key === 'pedidos' && <AlertCountBadge count={orderAlertCount} />}
+                  {/* sino na opinião: a Gota REAL respondeu à mensagem */}
+                  {key === 'feedback' && <AlertCountBadge count={messageAlertCount} />}
                 </span>
                 <span className={cn('text-[11px] font-black leading-none', active && 'text-primary')}>
                   {label}
