@@ -117,7 +117,7 @@ function loadStore(identity: string): AlertStore {
   const empty: AlertStore = { acked: [], orderStatus: {}, fbStatus: {}, pending: [], initialized: false }
   if (typeof window === 'undefined') return empty
   try {
-    const raw = window.localStorage.getItem(`gota-real-alerts-${identity}`)
+    const raw = window.localStorage.getItem(`gota-real-alerts2-${identity}`)
     if (!raw) return empty
     const parsed = JSON.parse(raw) as Partial<AlertStore>
     return {
@@ -136,7 +136,7 @@ function saveStore(identity: string, store: AlertStore) {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(
-      `gota-real-alerts-${identity}`,
+      `gota-real-alerts2-${identity}`,
       JSON.stringify({
         acked: [...store.acked].slice(-400),
         orderStatus: store.orderStatus,
@@ -231,7 +231,8 @@ export function AlertCenter({ children }: { children: ReactNode }) {
       return {
         type: 'courier' as const,
         token: auth.token,
-        courierId: courierId ?? auth.user.courierId ?? null,
+        // o courier ligado ao perfil (vem do login) ou o registo escolhido
+        courierId: courierId ?? auth.user.courier?.id ?? null,
         identity: `courier-${auth.user.id}`,
       }
     }
@@ -255,6 +256,8 @@ export function AlertCenter({ children }: { children: ReactNode }) {
     storeRef.current = store
     // avisos ainda não visualizados de antes voltam a tocar
     setAlerts(store.pending)
+    // o registo de notificações do sistema também é por identidade
+    notifiedRef.current = new Set()
   }, [scope?.identity])
 
   // -------------------------------------------------------------------------
@@ -303,23 +306,27 @@ export function AlertCenter({ children }: { children: ReactNode }) {
         const stateful: AppAlert[] = []
         const fresh: AppAlert[] = []
 
-        // primeira sondagem de sempre: fotografa o estado actual sem
-        // alarmar (a partir daqui, tudo o que chegar NOVO dispara o som)
+        // primeira sondagem de sempre: fotografa o estado actual apenas
+        // para detectar MUDANÇAS a partir daqui — mas NÃO silencia nada do
+        // que precisa de acção: pedidos pendentes (central/vendas),
+        // entregas atribuídas (motoboy), mensagens abertas e estados
+        // activos do cliente (confirmado / em trânsito) continuam a
+        // alarmar até serem visualizados, MESMO que tenham chegado antes
+        // de abrir a app ou de entrar na sessão
         if (!store.initialized) {
           store.initialized = true
           for (const o of data.orders) {
-            if (o.status === 'pendente') store.acked.push(`order-${o.id}`)
-            if (o.status === 'confirmado') store.acked.push(`assign-${o.id}`)
-            store.acked.push(`st-${o.id}-${o.status}`)
+            // estados terminais antigos não voltam a avisar; os activos sim
+            if (o.status === 'entregue' || o.status === 'cancelado') {
+              store.acked.push(`st-${o.id}-${o.status}`)
+            }
             store.orderStatus[o.id] = o.status
           }
           for (const f of data.feedbacks) {
-            if (f.status === 'aberto') store.acked.push(`msg-${f.id}`)
             store.fbStatus[f.id] = f.status
           }
           store.acked = [...new Set(store.acked)]
           saveStore(scope.identity, store)
-          return
         }
 
         if (scope.type === 'staff') {
@@ -371,49 +378,56 @@ export function AlertCenter({ children }: { children: ReactNode }) {
           // cliente: cada mudança de estado do SEU pedido + resposta à mensagem
           for (const o of data.orders) {
             const prev = store.orderStatus[o.id]
-            // avisa quando o estado muda OU quando um pedido novo já
-            // aparece avançado (criado e confirmado entre duas sondagens,
-            // ou pedido feito noutro dispositivo)
-            if (o.status !== 'pendente' && (prev === undefined || prev !== o.status)) {
-              const key = `st-${o.id}-${o.status}`
-              if (!store.acked.includes(key)) {
-                const meta =
-                  o.status === 'confirmado'
-                    ? { title: `Pedido nº ${o.number} confirmado!`, body: 'A Gota REAL confirmou o seu pedido. Em breve sai para entrega.' }
-                    : o.status === 'em_transito'
-                      ? { title: `Pedido nº ${o.number} a caminho!`, body: 'A sua água saiu da base e já vem a caminho. Acompanhe o motoboy no mapa.' }
-                      : o.status === 'entregue'
-                        ? { title: `Pedido nº ${o.number} entregue!`, body: 'A sua água foi entregue. Obrigado por preferir a Gota REAL 💧' }
-                        : { title: `Pedido nº ${o.number} cancelado`, body: 'Este pedido foi cancelado pela central. Contacte-nos para mais detalhes.' }
-                fresh.push({
-                  key,
-                  kind: o.status === 'cancelado' ? 'cancel' : 'status',
-                  ...meta,
-                  orderId: o.id,
-                  tab: 'pedidos',
-                  stateful: false,
-                  at: o.updatedAt,
-                })
-              }
+            // estados activos (confirmado / em trânsito) alarmam até serem
+            // visualizados — mesmo que tenham chegado com a app fechada;
+            // entregue / cancelado avisam uma vez, no momento da mudança
+            const active = o.status === 'confirmado' || o.status === 'em_transito'
+            const changed = prev === undefined || prev !== o.status
+            if (
+              (active || (o.status !== 'pendente' && changed)) &&
+              !store.acked.includes(`st-${o.id}-${o.status}`)
+            ) {
+              const meta =
+                o.status === 'confirmado'
+                  ? { title: `Pedido nº ${o.number} confirmado!`, body: 'A Gota REAL confirmou o seu pedido. Em breve sai para entrega.' }
+                  : o.status === 'em_transito'
+                    ? { title: `Pedido nº ${o.number} a caminho!`, body: 'A sua água saiu da base e já vem a caminho. Acompanhe o motoboy no mapa.' }
+                    : o.status === 'entregue'
+                      ? { title: `Pedido nº ${o.number} entregue!`, body: 'A sua água foi entregue. Obrigado por preferir a Gota REAL 💧' }
+                      : { title: `Pedido nº ${o.number} cancelado`, body: 'Este pedido foi cancelado pela central. Contacte-nos para mais detalhes.' }
+              ;(active ? stateful : fresh).push({
+                key: `st-${o.id}-${o.status}`,
+                kind: o.status === 'cancelado' ? 'cancel' : 'status',
+                ...meta,
+                orderId: o.id,
+                tab: 'pedidos',
+                stateful: active,
+                at: o.updatedAt,
+              })
             }
             store.orderStatus[o.id] = o.status
           }
           for (const f of data.feedbacks) {
             const prev = store.fbStatus[f.id]
-            // resposta nova: estado mudou para "respondido" — inclui o caso
-            // mensagem criada e respondida entre duas sondagens
-            if (f.status === 'respondido' && (prev === undefined || prev !== 'respondido')) {
-              if (!store.acked.includes(`reply-${f.id}`)) {
-                fresh.push({
-                  key: `reply-${f.id}`,
-                  kind: 'message',
-                  title: 'A Gota REAL respondeu você!',
-                  body: `Resposta à sua mensagem: “${f.subject}”. Toque para ler.`,
-                  tab: 'feedback',
-                  stateful: false,
-                  at: f.respondedAt ?? f.createdAt,
-                })
-              }
+            // resposta nova: estado mudou para "respondido" — ou chegou há
+            // menos de 48 h (respondeu enquanto a app estava fechada)
+            const respondeuHaPouco = f.respondedAt
+              ? Date.now() - new Date(f.respondedAt).getTime() < 48 * 60 * 60 * 1000
+              : false
+            if (
+              f.status === 'respondido' &&
+              ((prev === undefined || prev !== 'respondido') || respondeuHaPouco) &&
+              !store.acked.includes(`reply-${f.id}`)
+            ) {
+              fresh.push({
+                key: `reply-${f.id}`,
+                kind: 'message',
+                title: 'A Gota REAL respondeu você!',
+                body: `Resposta à sua mensagem: “${f.subject}”. Toque para ler.`,
+                tab: 'feedback',
+                stateful: false,
+                at: f.respondedAt ?? f.createdAt,
+              })
             }
             store.fbStatus[f.id] = f.status
           }
@@ -423,8 +437,10 @@ export function AlertCenter({ children }: { children: ReactNode }) {
         if (fresh.length > 0) {
           const known = new Set(store.pending.map((p) => p.key))
           store.pending = [...store.pending, ...fresh.filter((f) => !known.has(f.key))].slice(-20)
-          for (const a of fresh) notifySystem(a)
         }
+        // notificação do sistema (app em segundo plano) — para todos os
+        // avisos ainda não anunciados, sejam de uma vez ou persistentes
+        for (const a of [...fresh, ...stateful]) notifySystem(a)
 
         // avisos com estado que já se resolveu saem da lista sozinhos
         // (ex.: outro administrador confirmou o pedido pendente)
@@ -577,7 +593,7 @@ export function AlertCenter({ children }: { children: ReactNode }) {
 // ---------------------------------------------------------------- overlay do alarme
 
 function AlarmOverlay() {
-  const { alerts, view, ack } = useAlerts()
+  const { alerts, view, ack, ackAll } = useAlerts()
   if (alerts.length === 0) return null
 
   const alert = alerts[0]
@@ -637,6 +653,15 @@ function AlarmOverlay() {
               <X className="h-4 w-4" />
               Fechar este aviso
             </button>
+            {alerts.length > 1 && (
+              <button
+                onClick={ackAll}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-red-200 bg-red-50 text-sm font-bold text-red-700 transition-all hover:bg-red-100 active:scale-[0.98]"
+              >
+                <VolumeX className="h-4 w-4" />
+                Silenciar todos ({alerts.length})
+              </button>
+            )}
           </div>
 
           {alerts.length > 1 && (

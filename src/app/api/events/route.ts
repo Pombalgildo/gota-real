@@ -61,7 +61,10 @@ export async function GET(req: NextRequest) {
 
     // ---------- Entregador: motoboy e motorista ----------
     if (role && (DELIVERY_ROLES as readonly string[]).includes(role)) {
-      const courierId = user?.courier?.id ?? courierIdParam
+      // o registo que o entregador VÊ no painel (definido no login ou na
+      // selecção de veículo) manda — os alarmes acompanham sempre o que
+      // está no ecrã dele; sem parâmetro, usa o courier ligado ao perfil
+      const courierId = courierIdParam ?? user?.courier?.id
       const orders = courierId
         ? await db.order.findMany({
             where: { courierId, status: { in: ['confirmado', 'em_transito', 'cancelado'] } },
