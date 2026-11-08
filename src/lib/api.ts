@@ -326,11 +326,13 @@ export function createCourier(body: Partial<Courier> & { name: string }) {
 }
 
 export function updateCourier(
+  token: string,
   id: string,
   body: Partial<{ latitude: number; longitude: number; available: boolean }>
 ) {
   return request<{ courier: Courier }>(`/api/couriers/${id}`, {
     method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   })
 }

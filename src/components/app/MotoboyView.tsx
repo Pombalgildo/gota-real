@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore, formatKz, formatDateTime } from '@/store/app-store'
-import { useCouriers, useAllOrders, useStoreConfig } from '@/components/app/hooks'
+import { useCouriers, useAllOrders, useStoreConfig, useDrivingRoute } from '@/components/app/hooks'
 import { MiniMap } from '@/components/app/MiniMap'
 import { PaymentBadge } from '@/components/app/Badges'
 import { Avatar } from '@/components/app/Avatar'
@@ -241,13 +241,19 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
   )
   const [simulating, setSimulating] = useState(false)
   const [realGps, setRealGps] = useState(false)
+  const [gpsDenied, setGpsDenied] = useState(false)
   const watchIdRef = useRef<number | null>(null)
   const simRef = useRef<{ stop: boolean }>({ stop: false })
+  // último envio ao servidor (throttle: no máx 1 a cada 3s e só se andou >15m)
+  const lastSentRef = useRef<{ at: number; p: GeoPoint | null }>({ at: 0, p: null })
 
   const dest: GeoPoint | null =
     order.latitude != null && order.longitude != null
       ? { lat: order.latitude, lng: order.longitude }
       : null
+
+  // rota REAL pelas ruas de Luanda (OSRM) — para navegação e desenho no mapa
+  const { route } = useDrivingRoute(mode === 'in_transit' ? myPos : null, dest)
 
   // recebe a própria posição (ecos do socket) para o mapa
   useEffect(() => {
@@ -271,12 +277,88 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
 
   const sendPos = useCallback(
     (p: GeoPoint) => {
+      const now = Date.now()
+      const last = lastSentRef.current
+      const movedKm = last.p ? haversineKm(last.p, p) : Infinity
+      // no máximo um envio a cada 3s E só se andou mais de 15m — evita
+      // martelar o servidor quando o GPS dispara leituras por segundo
+      if (now - last.at < 3000 && movedKm < 0.015) return
+      lastSentRef.current = { at: now, p }
       setMyPos(p)
       if (order.courierId) emitCourierMove(order.courierId, p.lat, p.lng)
-      updateCourier(order.courierId!, { latitude: p.lat, longitude: p.lng }).catch(() => undefined)
+      if (auth?.token && order.courierId) {
+        updateCourier(auth.token, order.courierId, { latitude: p.lat, longitude: p.lng }).catch(
+          () => undefined
+        )
+      }
     },
-    [order.courierId]
+    [order.courierId, auth?.token]
   )
+
+  // ⭐ GPS REAL liga sozinho quando a entrega está em curso — o motoboy
+  // não precisa de tocar em nada e o cliente passa a ver o trajecto
+  // verdadeiro a mexer-se no mapa (antes dependia de um botão manual
+  // que ninguém ligava, e o mapa ficava parado).
+  useEffect(() => {
+    if (mode !== 'in_transit') return
+    if (realGps || simulating) return
+    let cancelled = false
+    const id = watchPosition(
+      (pos) => {
+        if (!cancelled) sendPos({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      },
+      () => {
+        // permissão negada ou GPS indisponível — o motoboy é avisado
+        // no painel e pode ligar manualmente (ou usar a simulação de demo)
+        if (!cancelled) setGpsDenied(true)
+      }
+    )
+    if (id != null) {
+      watchIdRef.current = id
+      setRealGps(true)
+      setGpsDenied(false)
+      toast({
+        title: 'GPS real activado 📍',
+        description: 'O cliente vê-no a chegar no mapa, em tempo real.',
+      })
+    } else {
+      setGpsDenied(true)
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [mode])
+
+  // mantém o ecrã aceso enquanto entrega — sem isto o telemóvel dorme,
+  // o GPS pára de emitir e o cliente vê o marcador “congelado”
+  useEffect(() => {
+    if (mode !== 'in_transit') return
+    type Sentinel = { release: () => Promise<void> }
+    let sentinel: Sentinel | null = null
+    let cancelled = false
+    const nav = navigator as Navigator & {
+      wakeLock?: { request: (type: 'screen') => Promise<Sentinel> }
+    }
+    const acquire = () => {
+      nav.wakeLock
+        ?.request('screen')
+        .then((s) => {
+          if (cancelled) s.release().catch(() => undefined)
+          else sentinel = s
+        })
+        .catch(() => undefined)
+    }
+    acquire()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !sentinel) acquire()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+      sentinel?.release().catch(() => undefined)
+    }
+  }, [mode])
 
   /** simula o trajecto do motoboy até ao cliente (sai da base da empresa) */
   const simulateRide = useCallback(async () => {
@@ -344,8 +426,14 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
     try {
       await orderAction(auth?.token ?? '', order.id, action)
       if (action === 'dispatch') {
-        toast({ title: 'Entrega iniciada 🛵', description: 'O cliente já o vê a chegar no mapa.' })
-        simulateRide()
+        // o GPS real arranca sozinho ao entrar em trânsito (efeito acima);
+        // aqui ficava antes uma simulação de 28 segundos que “teleportava”
+        // o marcador para a casa do cliente e depois o mapa congelava —
+        // era isto que fazia o rastreio parecer morto na prática
+        toast({
+          title: 'Entrega iniciada 🛵',
+          description: 'GPS real activado — o cliente vê-no a chegar no mapa em tempo real.',
+        })
       } else {
         simRef.current.stop = true
         toast({
@@ -397,7 +485,7 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
         </div>
       </div>
 
-      {/* mapa */}
+      {/* mapa — com a rota REAL pelas ruas quando disponível */}
       {dest && (
         <MiniMap
           customer={dest}
@@ -407,6 +495,9 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
               ? { lat: store.latitude, lng: store.longitude }
               : CENTRAL_BASE
           }
+          route={mode === 'in_transit' ? route?.points ?? null : null}
+          remainingKm={mode === 'in_transit' ? route?.distanceKm ?? null : null}
+          etaMin={mode === 'in_transit' ? route?.durationMin ?? null : null}
           live={mode === 'in_transit' && (simulating || realGps)}
           courierLabel="Você"
           customerLabel={order.customer?.name?.split(' ')[0] || 'Cliente'}
@@ -415,10 +506,65 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
         />
       )}
 
-      {/* GPS + distância */}
+      {/* 🧭 NAVEGAÇÃO: estado do GPS + próxima indicação + botão de voz */}
+      {mode === 'in_transit' && (
+        <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/80 p-3">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                realGps ? 'bg-emerald-100 text-emerald-700' : gpsDenied ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'
+              )}
+            >
+              <Satellite className="h-4 w-4" />
+            </span>
+            <p className="text-xs font-black leading-snug text-navy">
+              {realGps
+                ? 'GPS real activo — o cliente vê-no a mover-se no mapa'
+                : gpsDenied
+                  ? 'GPS desligado! Active a localização do telemóvel para o cliente o ver a chegar'
+                  : 'a ligar o GPS do telemóvel…'}
+            </p>
+            {realGps && <span className="live-dot ml-auto shrink-0" />}
+          </div>
+
+          {dest && route && route.steps.length > 0 ? (
+            <div className="rounded-lg bg-white p-2.5 shadow-sm">
+              <p className="text-[9px] font-black uppercase tracking-wider text-sky-600">
+                próxima indicação
+              </p>
+              <p className="mt-0.5 text-sm font-black leading-snug text-navy">
+                {route.steps[0].instruction}
+                {route.steps[0].distanceKm > 0.02 && (
+                  <span className="font-bold text-sky-700"> · {formatDistance(route.steps[0].distanceKm)}</span>
+                )}
+              </p>
+              <p className="mt-1 text-[11px] font-bold text-muted-foreground">
+                faltam {formatDistance(route.distanceKm)} · cerca de{' '}
+                {Math.max(1, Math.round(route.durationMin))} min pelas ruas
+              </p>
+            </div>
+          ) : dest && myPos ? (
+            <p className="rounded-lg bg-white/70 px-2.5 py-1.5 text-[11px] font-semibold text-sky-700">
+              a calcular a melhor rota pelas ruas… (se não aparecer, use o botão abaixo)
+            </p>
+          ) : null}
+
+          {dest && (
+            <Button
+              className="btn-gold h-12 w-full rounded-xl text-sm font-black"
+              onClick={() => window.open(googleMapsNavUrl(dest), '_blank')}
+            >
+              <Navigation className="h-5 w-5" /> Navegar com voz (Google Maps)
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* simulação (demonstração) — em uso real prefere-se o GPS do telemóvel */}
       {mode === 'in_transit' && (
         <div className="flex flex-wrap items-center gap-2">
-          {distanceKm != null && (
+          {distanceKm != null && !route && (
             <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-secondary-foreground">
               📍 falta {formatDistance(distanceKm)}
             </span>
@@ -430,8 +576,9 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
               className="h-9 rounded-full font-bold"
               onClick={simulateRide}
               disabled={realGps}
+              title="Demonstração: move o marcador até ao cliente sem GPS"
             >
-              <Sparkles className="h-3.5 w-3.5 text-gold" /> Simular trajecto até ao cliente
+              <Sparkles className="h-3.5 w-3.5 text-gold" /> Simular trajecto (demo)
             </Button>
           ) : (
             <Button size="sm" variant="destructive" className="h-9 rounded-full font-bold" onClick={stopSimulation}>
@@ -444,18 +591,8 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
             className="h-9 rounded-full font-bold"
             onClick={toggleRealGps}
           >
-            <Satellite className="h-3.5 w-3.5" /> {realGps ? 'GPS real activo' : 'Usar GPS real do telemóvel'}
+            <Satellite className="h-3.5 w-3.5" /> {realGps ? 'GPS real activo' : 'Ligar GPS real'}
           </Button>
-          {dest && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 rounded-full font-bold"
-              onClick={() => window.open(googleMapsNavUrl(dest), '_blank')}
-            >
-              <Navigation className="h-3.5 w-3.5 text-primary" /> Navegar
-            </Button>
-          )}
         </div>
       )}
 

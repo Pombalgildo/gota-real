@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useAppStore, formatKz, formatLiters, formatDateTime, durationMinutes } from '@/store/app-store'
-import { useCustomerOrders, useCourierPosition, useProducts, useStoreConfig } from '@/components/app/hooks'
+import { useCustomerOrders, useCourierPosition, useDrivingRoute, useProducts, useStoreConfig } from '@/components/app/hooks'
 import { OrderTimeline } from '@/components/app/OrderTimeline'
 import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { MiniMap } from '@/components/app/MiniMap'
@@ -161,6 +161,12 @@ function TrackingDetail({ order, onBack, onUpdated }: { order: Order; onBack: ()
       ? { lat: order.latitude, lng: order.longitude }
       : null
 
+  // rota REAL pelas ruas (OSRM): desenha-se no mapa e dá a distância/
+  // tempo que faltam de verdade — não em linha recta
+  const { route } = useDrivingRoute(inTransit ? courierPos : null, customerPoint)
+  const remainingKm = inTransit && route ? route.distanceKm : null
+  const almostThere = inTransit && remainingKm != null && remainingKm < 0.25
+
   // base da empresa: localização GPS configurada pelo administrador
   // (fallback: centro de demonstração de Luanda)
   const originPoint =
@@ -200,10 +206,23 @@ function TrackingDetail({ order, onBack, onUpdated }: { order: Order; onBack: ()
             customer={customerPoint}
             courier={inTransit ? courierPos : null}
             origin={originPoint}
+            route={inTransit ? route?.points ?? null : null}
+            remainingKm={remainingKm}
+            etaMin={inTransit && route ? route.durationMin : null}
             live={inTransit}
             courierLabel={order.courier?.name?.split(' ')[0] ?? 'Motoboy'}
             originLabel={store?.name || 'Gota REAL'}
           />
+          {almostThere ? (
+            <p className="rounded-xl bg-emerald-100 px-3 py-2.5 text-center text-xs font-black text-emerald-800">
+              🎉 O seu motoboy está a chegar — prepare a garrafa de água!
+            </p>
+          ) : inTransit && courierPos == null ? (
+            <p className="rounded-xl bg-secondary/60 px-3 py-2 text-[11px] font-semibold leading-snug text-secondary-foreground">
+              🛵 O motoboy já partiu — assim que o GPS do telemóvel dele der
+              sinal, o trajecto aparece aqui a mexer-se.
+            </p>
+          ) : null}
           {!inTransit && (
             <p className="rounded-xl bg-secondary/60 px-3 py-2 text-[11px] font-semibold leading-snug text-secondary-foreground">
               👑 A sua água sai da base {store?.name || 'Gota REAL'}

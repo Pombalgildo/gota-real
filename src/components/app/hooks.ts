@@ -12,6 +12,8 @@ import {
   fetchUsers,
 } from '@/lib/api'
 import { getRealtimeSocket, isRealtimeConnected } from '@/lib/realtime-client'
+import { haversineKm, type GeoPoint } from '@/lib/geo'
+import { fetchDrivingRoute, type DrivingRoute } from '@/lib/routing'
 import { useAppStore } from '@/store/app-store'
 
 /**
@@ -380,4 +382,58 @@ export function useCourierPosition(courierId?: string | null) {
   }, [courierId])
 
   return pos
+}
+
+/**
+ * Rota de condução REAL (ruas de verdade, via OSRM) entre dois pontos.
+ * Recalcula sozinha quando quem se move anda mais de ~80 m ou quando o
+ * destino muda — e no máximo de 15 em 15 s, para não martelar o serviço.
+ * Devolve `{ route: null }` enquanto não há rota (a app usa linha recta).
+ */
+export function useDrivingRoute(from: GeoPoint | null, to: GeoPoint | null) {
+  const [route, setRoute] = useState<DrivingRoute | null>(null)
+  const lastRef = useRef<{ from: GeoPoint; to: GeoPoint; at: number } | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    if (!from || !to) {
+      // sem pontos não há rota: cancela o pedido em curso e esquece o
+      // último cálculo para a próxima sessão recomeçar limpa (o valor
+      // devolvido já trata este caso — ver retorno abaixo)
+      abortRef.current?.abort()
+      lastRef.current = null
+      return
+    }
+    const now = Date.now()
+    const last = lastRef.current
+    const movedFrom = !last || haversineKm(last.from, from) > 0.08
+    const movedTo = !last || haversineKm(last.to, to) > 0.05
+    // rota ainda fresca e ninguém se mexeu — mantém a actual
+    if (last && !movedFrom && !movedTo && now - last.at < 15_000) return
+
+    // pequeno debounce: o GPS dispara várias leituras seguidas
+    const timer = setTimeout(() => {
+      lastRef.current = { from, to, at: Date.now() }
+      abortRef.current?.abort()
+      const ac = new AbortController()
+      abortRef.current = ac
+      fetchDrivingRoute(from, to, ac.signal).then((r) => {
+        if (!ac.signal.aborted) setRoute(r)
+      })
+    }, 400)
+
+    return () => clearTimeout(timer)
+    // deps por valor (lat/lng) — os objectos mudam de identidade a cada leitura
+  }, [from?.lat, from?.lng, to?.lat, to?.lng])
+
+  // cancela o pedido em curso ao desmontar
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
+  // sem origem/destino nunca há rota válida (calculado no render — evita
+  // setState síncrono dentro do effect, proibido pelo lint do React Compiler)
+  return { route: from && to ? route : null }
 }

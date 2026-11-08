@@ -16,6 +16,12 @@ interface MiniMapProps {
   customerLabel?: string
   className?: string
   compact?: boolean
+  /** rota de condução REAL (ruas, via OSRM) — desenhada em vez da linha recta */
+  route?: GeoPoint[] | null
+  /** distância que falta (ao longo da rota) — sobrepõe-se à linha recta */
+  remainingKm?: number | null
+  /** tempo estimado da rota real, em minutos */
+  etaMin?: number | null
 }
 
 interface ScreenPoint {
@@ -38,6 +44,9 @@ export function MiniMap({
   customerLabel = 'Você',
   className,
   compact = false,
+  route,
+  remainingKm,
+  etaMin,
 }: MiniMapProps) {
   const W = 400
   const H = compact ? 210 : 260
@@ -56,15 +65,18 @@ export function MiniMap({
     // projeção local simples (graus -> km), centrada no cliente
     const kmPerDegLat = 110.574
     const kmPerDegLng = 111.32 * Math.cos((customer.lat * Math.PI) / 180)
-    const km = pts.map(({ key, p }) => ({
-      key,
+    const toKm = (p: GeoPoint) => ({
       x: (p.lng - customer.lng) * kmPerDegLng,
       y: (p.lat - customer.lat) * kmPerDegLat,
-    }))
+    })
+    const km = pts.map(({ key, p }) => ({ key, ...toKm(p) }))
 
-    // limites e escala para caberem todos os marcadores com folga
-    const xs = km.map((k) => k.x)
-    const ys = km.map((k) => k.y)
+    // a rota real também entra nos limites para a polilinha caber no mapa
+    const routeKm = (route ?? []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)).map(toKm)
+
+    // limites e escala para caberem todos os marcadores (e a rota) com folga
+    const xs = km.map((k) => k.x).concat(routeKm.map((k) => k.x))
+    const ys = km.map((k) => k.y).concat(routeKm.map((k) => k.y))
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
     const minY = Math.min(...ys)
@@ -89,17 +101,23 @@ export function MiniMap({
       customer: project(customerKm.x, customerKm.y),
       origin: originKm ? project(originKm.x, originKm.y) : null,
       courier: courierKm ? project(courierKm.x, courierKm.y) : null,
+      route: routeKm.map((k) => project(k.x, k.y)),
     }
-  }, [customer, courier, origin])
+  }, [customer, courier, origin, route])
 
   // distância que interessa ao cliente: motoboy→cliente; sem motoboy,
-  // a distância total da rota (empresa→cliente)
-  const distanceKm =
+  // a distância total da rota (empresa→cliente). Com rota real, usa-se
+  // a distância ao longo das ruas (mais fiel do que a linha recta)
+  const straightKm =
     customer && courier
       ? haversineKm(customer, courier)
       : customer && origin
         ? haversineKm(customer, origin)
         : null
+  const distanceKm =
+    remainingKm != null && remainingKm >= 0 ? remainingKm : straightKm
+  const etaLabel =
+    etaMin != null && etaMin > 0 ? Math.max(1, Math.round(etaMin)) : distanceKm != null ? etaMinutes(distanceKm) : null
 
   return (
     <div
@@ -160,8 +178,33 @@ export function MiniMap({
 
         {layout && (
           <>
-            {/* trajectos: empresa → motoboy → cliente (ou empresa → cliente) */}
-            {layout.origin && layout.courier && (
+            {/* rota REAL pelas ruas (OSRM) — desenhada com brilho + traço */}
+            {layout.route.length > 1 && (
+              <g>
+                <polyline
+                  points={layout.route.map((p) => `${p.sx},${p.sy}`).join(' ')}
+                  fill="none"
+                  stroke="#38BDF8"
+                  strokeOpacity="0.18"
+                  strokeWidth="9"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <polyline
+                  points={layout.route.map((p) => `${p.sx},${p.sy}`).join(' ')}
+                  fill="none"
+                  stroke="#7EC8E3"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="route-dash"
+                  opacity="0.95"
+                />
+              </g>
+            )}
+
+            {/* trajectos rectos: só quando NÃO há rota real */}
+            {layout.route.length <= 1 && layout.origin && layout.courier && (
               <>
                 <line
                   x1={layout.origin.sx}
@@ -187,7 +230,7 @@ export function MiniMap({
                 />
               </>
             )}
-            {layout.origin && !layout.courier && (
+            {layout.route.length <= 1 && layout.origin && !layout.courier && (
               <line
                 x1={layout.origin.sx}
                 y1={layout.origin.sy}
@@ -200,7 +243,7 @@ export function MiniMap({
                 opacity="0.9"
               />
             )}
-            {!layout.origin && layout.courier && (
+            {layout.route.length <= 1 && !layout.origin && layout.courier && (
               <line
                 x1={layout.customer.sx}
                 y1={layout.customer.sy}
@@ -329,9 +372,11 @@ export function MiniMap({
           <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-navy shadow-md">
             📍 {formatDistance(distanceKm)}
           </span>
-          <span className="rounded-full bg-gold/95 px-3 py-1.5 text-xs font-bold text-[#3A2A05] shadow-md">
-            ⏱ cerca de {etaMinutes(distanceKm)} min
-          </span>
+          {etaLabel != null && (
+            <span className="rounded-full bg-gold/95 px-3 py-1.5 text-xs font-bold text-[#3A2A05] shadow-md">
+              ⏱ cerca de {etaLabel} min
+            </span>
+          )}
         </div>
       )}
 
