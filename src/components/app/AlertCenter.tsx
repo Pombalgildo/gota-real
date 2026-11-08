@@ -164,6 +164,7 @@ const KIND_STYLE: Record<AlarmKind, { gradient: string; icon: typeof Package; la
   cancel: { gradient: 'from-red-700 via-rose-800 to-red-900', icon: XCircle, label: 'Cancelado' },
   receipt: { gradient: 'from-emerald-500 via-lime-500 to-emerald-700', icon: ClipboardCheck, label: 'Recepção' },
   dispute: { gradient: 'from-red-800 via-red-700 to-orange-900', icon: ShieldAlert, label: 'Reclamação' },
+  arrival: { gradient: 'from-sky-500 via-cyan-500 to-blue-700', icon: BellRing, label: 'Chegada' },
 }
 
 function orderAlert(o: EventOrder): AppAlert {

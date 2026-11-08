@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore, formatKz, formatLiters, formatDateTime, durationMinutes } from '@/store/app-store'
 import { useCustomerOrders, useCourierPosition, useDrivingRoute, useProducts, useStoreConfig } from '@/components/app/hooks'
 import { OrderTimeline } from '@/components/app/OrderTimeline'
@@ -8,7 +8,8 @@ import { StatusBadge, PaymentBadge } from '@/components/app/Badges'
 import { MiniMap } from '@/components/app/MiniMap'
 import { ProductArt } from '@/components/app/ProductArt'
 import { confirmReceipt, disputeReceipt } from '@/lib/api'
-import { googleMapsNavUrl, CENTRAL_BASE } from '@/lib/geo'
+import { playArrivalChime, requestSystemNotify, systemNotify } from '@/lib/alarm-sound'
+import { googleMapsNavUrl, haversineKm, CENTRAL_BASE } from '@/lib/geo'
 import { cn } from '@/lib/utils'
 import type { Order } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import { useToast } from '@/hooks/use-toast'
 import {
   ArrowLeft,
   BadgeCheck,
+  BellRing,
   Bike,
   ChevronRight,
   Clock,
@@ -164,8 +166,43 @@ function TrackingDetail({ order, onBack, onUpdated }: { order: Order; onBack: ()
   // rota REAL pelas ruas (OSRM): desenha-se no mapa e dá a distância/
   // tempo que faltam de verdade — não em linha recta
   const { route } = useDrivingRoute(inTransit ? courierPos : null, customerPoint)
-  const remainingKm = inTransit && route ? route.distanceKm : null
+  // distância que falta: pelas ruas quando há rota; em linha recta como
+  // reserva (o aviso de chegada nunca deixa de disparar se o OSRM falhar)
+  const straightKm =
+    inTransit && courierPos && customerPoint ? haversineKm(courierPos, customerPoint) : null
+  const remainingKm = inTransit ? (route ? route.distanceKm : straightKm) : null
   const almostThere = inTransit && remainingKm != null && remainingKm < 0.25
+
+  // 🔔 AVISO DE CHEGADA: quando falta menos de 250 m toca a campainha
+  // (Dó-Mi-Sol-Dó), vibra o telemóvel e manda notificação do sistema —
+  // funciona mesmo com a app em segundo plano. Uma vez por pedido.
+  const arrivalRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!almostThere) return
+    if (arrivalRef.current === order.id) return
+    arrivalRef.current = order.id
+    playArrivalChime()
+    systemNotify(
+      'Motoboy a chegar! 🛵',
+      `Pedido nº ${order.number} — o seu entregador está a menos de 250 m. Prepare a água!`,
+      `arrival-${order.id}`
+    )
+  }, [almostThere, order.id, order.number])
+
+  // permissão de notificações do sistema (para o aviso de chegada tocar
+  // à mesma com a app fechada — o utilizador activa com um toque)
+  const [notifyPerm, setNotifyPerm] = useState<NotificationPermission | 'unsupported'>(() =>
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
+  )
+  const [notifyBusy, setNotifyBusy] = useState(false)
+  async function enableArrivalNotify() {
+    setNotifyBusy(true)
+    const p = await requestSystemNotify()
+    setNotifyPerm(p)
+    setNotifyBusy(false)
+    // confirma o som na hora — e destranca o áudio com este gesto
+    playArrivalChime(1)
+  }
 
   // base da empresa: localização GPS configurada pelo administrador
   // (fallback: centro de demonstração de Luanda)
@@ -214,7 +251,7 @@ function TrackingDetail({ order, onBack, onUpdated }: { order: Order; onBack: ()
             originLabel={store?.name || 'Gota REAL'}
           />
           {almostThere ? (
-            <p className="rounded-xl bg-emerald-100 px-3 py-2.5 text-center text-xs font-black text-emerald-800">
+            <p className="animate-pulse rounded-xl bg-emerald-100 px-3 py-2.5 text-center text-xs font-black text-emerald-800">
               🎉 O seu motoboy está a chegar — prepare a garrafa de água!
             </p>
           ) : inTransit && courierPos == null ? (
@@ -223,6 +260,17 @@ function TrackingDetail({ order, onBack, onUpdated }: { order: Order; onBack: ()
               sinal, o trajecto aparece aqui a mexer-se.
             </p>
           ) : null}
+          {/* activar o aviso de chegada com notificação (app em segundo plano) */}
+          {inTransit && notifyPerm === 'default' && (
+            <button
+              onClick={enableArrivalNotify}
+              disabled={notifyBusy}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-[11px] font-black text-sky-800 transition-colors hover:bg-sky-100 active:scale-[0.99]"
+            >
+              <BellRing className="h-3.5 w-3.5" />
+              {notifyBusy ? 'a activar…' : 'Avisar-me com som e notificação quando o motoboy chegar'}
+            </button>
+          )}
           {!inTransit && (
             <p className="rounded-xl bg-secondary/60 px-3 py-2 text-[11px] font-semibold leading-snug text-secondary-foreground">
               👑 A sua água sai da base {store?.name || 'Gota REAL'}
