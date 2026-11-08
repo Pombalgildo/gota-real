@@ -13,14 +13,17 @@
  *     cancel   → tom descendente (entrega/pedido cancelado)
  *     receipt  → sino insistente (cliente tem de confirmar a recepção)
  *     dispute  → alarme grave urgente (cliente diz que NÃO recebeu!)
+ *     arrival  → campainha alegre a subir (motoboy está a chegar)
  * - O som toca em LOOP e só pára com stopAlarm() — ou seja, quando o
- *   utilizador VÊ o aviso ou interage com ele (requisito do cliente)
+ *   utilizador VÊ o aviso ou interage com ele (requisito do cliente).
+ *   Excepção: o aviso de CHEGADA é um toque finito (3 arpejos) — chama-se
+ *   playArrivalChime() — porque o motoboy já está à porta.
  * - Vibração contínua no Android (navigator.vibrate)
  * - Os navegadores bloqueiam áudio sem interacção prévia: o contexto
  *   é desbloqueado no primeiro toque/clique em qualquer lado da app
  */
 
-export type AlarmKind = 'order' | 'assign' | 'message' | 'status' | 'cancel' | 'receipt' | 'dispute'
+export type AlarmKind = 'order' | 'assign' | 'message' | 'status' | 'cancel' | 'receipt' | 'dispute' | 'arrival'
 
 interface Note {
   /** frequência em Hz */
@@ -114,6 +117,18 @@ const PATTERNS: Record<AlarmKind, Pattern> = {
     ],
     vibrate: [600, 120, 600],
   },
+  // CHEGADA: campainha de porta alegre (Dó-Mi-Sol-Dó) — soa a "está aqui!"
+  // sem assustar; toca um número finito de vezes (não faz loop)
+  arrival: {
+    period: 1500,
+    notes: [
+      { f: 523, d: 0.18, wave: 'triangle', g: 0.95 },
+      { f: 659, d: 0.18, at: 0.22, wave: 'triangle', g: 0.95 },
+      { f: 784, d: 0.26, at: 0.44, wave: 'triangle', g: 1 },
+      { f: 1046, d: 0.42, at: 0.7, wave: 'triangle', g: 1 },
+    ],
+    vibrate: [130, 90, 130, 90, 320],
+  },
 }
 
 // prioridade quando há vários alarmes: a reclamação de não recepção
@@ -126,6 +141,7 @@ const PRIORITY: Record<AlarmKind, number> = {
   receipt: 3,
   cancel: 3,
   message: 2,
+  arrival: 2,
   status: 1,
 }
 
@@ -305,4 +321,56 @@ export function installAudioUnlock(): void {
 /** Prioridade do alarme (para escolher qual toca quando há vários). */
 export function alarmPriority(kind: AlarmKind): number {
   return PRIORITY[kind]
+}
+
+/**
+ * 🔔 AVISO DE CHEGADA — o toque finito do "motoboy está à porta".
+ * Toca a campainha `repeats` vezes (por omissão 3) com vibração e PÁRA
+ * sozinho: ao contrário dos alarmes em loop, não precisa de stopAlarm()
+ * nem de ser visualizado — o próprio fim da entrega resolve o aviso.
+ */
+export function playArrivalChime(repeats = 3): void {
+  if (!enabled) return
+  ensureCtx()
+  const period = PATTERNS.arrival.period
+  for (let i = 0; i < repeats; i++) {
+    setTimeout(() => {
+      playCycle('arrival')
+      vibrateCycle('arrival')
+    }, i * period)
+  }
+}
+
+/**
+ * 📬 Notificação do sistema (barra de notificações / ecrã bloqueado).
+ * Só funciona se o utilizador já deu permissão (o ecrã de rastreio
+ * oferece o botão para a dar). Devolve true se foi mostrada.
+ */
+export function systemNotify(title: string, body: string, tag?: string): boolean {
+  if (typeof window === 'undefined' || !('Notification' in window)) return false
+  try {
+    if (Notification.permission !== 'granted') return false
+    const n = new Notification(`💧 Gota REAL — ${title}`, {
+      body,
+      icon: '/icon-192.png',
+      tag,
+    })
+    n.onclick = () => {
+      window.focus()
+      n.close()
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Pede permissão para notificações do sistema (com gesto do utilizador). */
+export async function requestSystemNotify(): Promise<NotificationPermission | 'unsupported'> {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
+  try {
+    return await Notification.requestPermission()
+  } catch {
+    return 'denied'
+  }
 }

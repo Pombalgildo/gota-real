@@ -10,6 +10,7 @@ import { LogoutButton } from '@/components/app/LoginDialog'
 import { InstallPrompt } from '@/components/app/InstallPrompt'
 import { AlertBell } from '@/components/app/AlertCenter'
 import { orderAction, updateCourier } from '@/lib/api'
+import { playArrivalChime } from '@/lib/alarm-sound'
 import { emitCourierMove, getRealtimeSocket } from '@/lib/realtime-client'
 import {
   haversineKm,
@@ -383,10 +384,8 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
     }
     if (!simRef.current.stop) {
       sendPos(dest)
-      toast({
-        title: 'Chegou ao destino! 🎉',
-        description: 'Toque em “Concluir entrega” quando entregar a água.',
-      })
+      // o toast de “chegou ao destino” agora sai do efeito de chegada
+      // (dispara a menos de 100 m com campainha) — evitar duplicado
     }
     setSimulating(false)
   }, [dest, myPos, order.courierId, sendPos, store, toast])
@@ -453,6 +452,21 @@ function DeliveryCard({ order, mode }: { order: Order; mode: 'assigned' | 'in_tr
   }
 
   const distanceKm = myPos && dest ? haversineKm(myPos, dest) : null
+
+  // 🎯 CHEGOU AO DESTINO: a menos de 100 m do cliente (GPS real ou demo)
+  // toca a campainha e vibra — o motoboy sabe que chegou sem precisar de
+  // olhar para o ecrã. Uma vez por entrega.
+  const reachedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (mode !== 'in_transit' || distanceKm == null || distanceKm > 0.1) return
+    if (reachedRef.current === order.id) return
+    reachedRef.current = order.id
+    playArrivalChime(2)
+    toast({
+      title: 'Chegou ao destino! 🎉',
+      description: 'Entregue a água e toque em “Concluir entrega”.',
+    })
+  }, [distanceKm, mode, order.id, toast])
 
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-white p-4 shadow-md">
