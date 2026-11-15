@@ -144,13 +144,21 @@ export function InstallPrompt({
   const visible = useInstallVisible()
 
   // registo do service worker (uma única vez) — acelera a app
-  // e é pré-requisito de instalação em versões mais antigas do Chrome
+  // e é pré-requisito de instalação em versões mais antigas do Chrome.
+  // O URL traz SEMPRE a versão (?v=...): um URL NOVO nunca foi cacheado
+  // pelo navegador, pelo que a versão nova do SW é instalada na hora —
+  // mesmo quando o browser teima em reusar o "/sw.js" antigo do cache.
+  // IMPORTANTE: ao mudar o código do sw.js, mudar também esta versão.
+  const SW_VERSION = '0.2.12'
   useEffect(() => {
     if (swRegistered) return
     swRegistered = true
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('/sw.js')
+        .register(`/sw.js?v=${SW_VERSION}`, {
+          // ignora o cache HTTP ao verificar actualizações do SW
+          updateViaCache: 'none',
+        })
         .then((reg) => {
           // quando um SW NOVO (versão diferente) assumir o controlo da
           // página, recarrega sozinho — o cliente vê as actualizações

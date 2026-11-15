@@ -9,6 +9,18 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
   allowedDevOrigins: ["*.space-z.ai", "*.chat.z.ai", "localhost"],
+  // o service worker NUNCA pode ser cacheado — senão os clientes ficam
+  // presos na versão antiga da app mesmo depois de actualizações
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-store, must-revalidate" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

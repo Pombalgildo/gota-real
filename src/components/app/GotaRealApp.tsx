@@ -195,6 +195,9 @@ function PendingApprovalScreen() {
         ⏳ Pode fechar a app enquanto aguarda — o aviso sonoro e a notificação chegam no momento
         da aprovação. Se o cadastro não for aceite, você recebe uma mensagem com o motivo.
       </p>
+      {/* marcador de versão — confirma que o aparelho está a correr o código
+          mais recente (anti-cache teimoso) */}
+      <p className="mt-4 text-[10px] font-bold tracking-wide text-white/40">versão 0.2.12</p>
       <LogoutButton label="Sair da conta" />
     </div>
   )

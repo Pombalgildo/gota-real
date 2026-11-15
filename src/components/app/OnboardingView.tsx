@@ -144,6 +144,11 @@ export function OnboardingView() {
         <div className="flex flex-col items-center pt-6">
           <BrandLogo size={92} className="ring-4 ring-white/60" />
           <BrandWordmark light size="md" className="mt-5" />
+          {/* marcador de versão — confirma que o aparelho está a correr o
+              código mais recente (anti-cache teimoso) */}
+          <p className="mt-2 rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-white/60 ring-1 ring-white/15">
+            versão 0.2.12
+          </p>
         </div>
 
         {/* conteúdo por passo */}

@@ -9,7 +9,7 @@
      O cache fica só como reserva para uso offline.
    ============================================================ */
 
-const VERSION = 'gota-real-v0.2.11'
+const VERSION = 'gota-real-v0.2.12'
 const STATIC_CACHE = `${VERSION}-static`
 
 const PRECACHE = [
