@@ -14,6 +14,7 @@
  *     receipt  → sino insistente (cliente tem de confirmar a recepção)
  *     dispute  → alarme grave urgente (cliente diz que NÃO recebeu!)
  *     arrival  → campainha alegre a subir (motoboy está a chegar)
+ *     signup   → fanfarra curta (cadastro novo à espera de aprovação)
  * - O som toca em LOOP e só pára com stopAlarm() — ou seja, quando o
  *   utilizador VÊ o aviso ou interage com ele (requisito do cliente).
  *   Excepção: o aviso de CHEGADA é um toque finito (3 arpejos) — chama-se
@@ -23,7 +24,7 @@
  *   é desbloqueado no primeiro toque/clique em qualquer lado da app
  */
 
-export type AlarmKind = 'order' | 'assign' | 'message' | 'status' | 'cancel' | 'receipt' | 'dispute' | 'arrival'
+export type AlarmKind = 'order' | 'assign' | 'message' | 'status' | 'cancel' | 'receipt' | 'dispute' | 'arrival' | 'signup'
 
 interface Note {
   /** frequência em Hz */
@@ -129,6 +130,17 @@ const PATTERNS: Record<AlarmKind, Pattern> = {
     ],
     vibrate: [130, 90, 130, 90, 320],
   },
+  // CADASTRO NOVO à espera de aprovação: fanfarra curta e clara para o
+  // administrador (Fá-Lá-Dó) — alguém se registou e a decisão é dele
+  signup: {
+    period: 1800,
+    notes: [
+      { f: 349, d: 0.16, wave: 'square', g: 0.85 },
+      { f: 440, d: 0.16, at: 0.2, wave: 'square', g: 0.85 },
+      { f: 523, d: 0.3, at: 0.4, wave: 'square', g: 0.95 },
+    ],
+    vibrate: [180, 100, 180, 100, 300],
+  },
 }
 
 // prioridade quando há vários alarmes: a reclamação de não recepção
@@ -140,6 +152,7 @@ const PRIORITY: Record<AlarmKind, number> = {
   order: 4,
   receipt: 3,
   cancel: 3,
+  signup: 3,
   message: 2,
   arrival: 2,
   status: 1,

@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useAppStore } from '@/store/app-store'
-import { fetchEvents, type EventFeedback, type EventOrder } from '@/lib/api'
+import { fetchEvents, type EventFeedback, type EventOrder, type EventSignup } from '@/lib/api'
 import {
   alarmPriority,
   installAudioUnlock,
@@ -37,6 +37,7 @@ import {
   ShieldAlert,
   Smartphone,
   Truck,
+  UserPlus,
   Volume2,
   VolumeX,
   X,
@@ -52,6 +53,7 @@ import {
  *
  *   ADMIN + ATENDENTE → pedido novo (pendente) e mensagem nova do cliente
  *                     + RECLAMAÇÃO: cliente diz que NÃO recebeu (anti-burla)
+ *   ADMIN             → CADASTRO NOVO de cliente à espera da sua aprovação
  *   MOTOBOY/MOTORISTA → entrega atribuída a ele e entregas canceladas
  *   CLIENTE           → cada mudança de estado do pedido e resposta à mensagem
  *                     + CONFIRMAR RECEPÇÃO da entrega ( Recebi / Não recebi )
@@ -72,7 +74,7 @@ interface AppAlert {
   body: string
   orderId?: string
   /** para onde levar o utilizador quando tocar em VER */
-  tab?: 'pedidos' | 'feedback'
+  tab?: 'pedidos' | 'feedback' | 'perfis'
   /** estado actual no servidor (auto-resolve quando o estado muda) */
   stateful: boolean
   at: string
@@ -83,8 +85,8 @@ type NotifyPermission = 'granted' | 'denied' | 'default' | 'unsupported'
 interface AlertsApi {
   /** avisos por visualizar (som a tocar) */
   alerts: AppAlert[]
-  /** contagens para os badges (pedidos, mensagens, entregas, reclamações) */
-  counts: { orders: number; messages: number; assigns: number; disputes: number }
+  /** contagens para os badges (pedidos, mensagens, entregas, reclamações, cadastros) */
+  counts: { orders: number; messages: number; assigns: number; disputes: number; signups: number }
   ack: (key: string) => void
   ackAll: () => void
   /** vê o aviso: reconhece, pára o som e navega até ao local certo */
@@ -165,6 +167,7 @@ const KIND_STYLE: Record<AlarmKind, { gradient: string; icon: typeof Package; la
   receipt: { gradient: 'from-emerald-500 via-lime-500 to-emerald-700', icon: ClipboardCheck, label: 'Recepção' },
   dispute: { gradient: 'from-red-800 via-red-700 to-orange-900', icon: ShieldAlert, label: 'Reclamação' },
   arrival: { gradient: 'from-sky-500 via-cyan-500 to-blue-700', icon: BellRing, label: 'Chegada' },
+  signup: { gradient: 'from-violet-600 via-purple-500 to-indigo-700', icon: UserPlus, label: 'Cadastro' },
 }
 
 function orderAlert(o: EventOrder): AppAlert {
@@ -189,6 +192,20 @@ function messageAlert(f: EventFeedback): AppAlert {
     tab: 'feedback',
     stateful: true,
     at: f.createdAt,
+  }
+}
+
+/** CADASTRO NOVO de cliente à espera de aprovação (só o administrador
+ *  recebe — leva-o directo à aba Perfis para decidir). */
+function signupAlert(s: EventSignup): AppAlert {
+  return {
+    key: `signup-${s.id}`,
+    kind: 'signup',
+    title: 'Cadastro novo à espera de aprovação!',
+    body: `${s.name} · ${s.phone} — veja os dados e a foto, e aprove ou recuse.`,
+    tab: 'perfis',
+    stateful: true,
+    at: s.createdAt,
   }
 }
 
@@ -371,6 +388,15 @@ export function AlertCenter({ children }: { children: ReactNode }) {
           for (const f of data.feedbacks) {
             if (f.status !== 'aberto') continue
             if (!store.acked.includes(`msg-${f.id}`)) stateful.push(messageAlert(f))
+          }
+
+          // CADASTROS NOVOS à espera de aprovação (apenas ADMIN recebe
+          // esta lista): o alarme toca até ele ver e decidir na aba Perfis
+          const staffRole = useAppStore.getState().auth?.user.role
+          if (staffRole === 'ADMIN' && Array.isArray(data.signups)) {
+            for (const s of data.signups) {
+              if (!store.acked.includes(`signup-${s.id}`)) stateful.push(signupAlert(s))
+            }
           }
         } else if (scope.type === 'courier') {
           for (const o of data.orders) {
@@ -563,7 +589,9 @@ export function AlertCenter({ children }: { children: ReactNode }) {
       // leva o utilizador directo ao local do aviso
       const role = useAppStore.getState().auth?.user.role
       if (role && (ORDER_MANAGER_ROLES as string[]).includes(role)) {
-        useAppStore.getState().setCentralTab(alert.tab === 'feedback' ? 'feedback' : 'pedidos')
+        useAppStore
+          .getState()
+          .setCentralTab(alert.tab === 'feedback' ? 'feedback' : alert.tab === 'perfis' ? 'perfis' : 'pedidos')
       } else if (!role || role === 'CLIENTE') {
         if (alert.tab === 'feedback') {
           useAppStore.getState().setTab('feedback')
@@ -620,6 +648,7 @@ export function AlertCenter({ children }: { children: ReactNode }) {
       messages: alerts.filter((a) => a.kind === 'message').length,
       assigns: alerts.filter((a) => a.kind === 'assign').length,
       disputes: alerts.filter((a) => a.kind === 'dispute').length,
+      signups: alerts.filter((a) => a.kind === 'signup').length,
     }),
     [alerts]
   )

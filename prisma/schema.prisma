@@ -26,8 +26,19 @@ model Customer {
   locationSource String    @default("auto")
   locationNote   String?
   // FOTO DE PERFIL do cliente (data URL base64) — enviada pelo próprio
-  // no Perfil ou colocada pelo administrador na Central
+  // no cadastro/Perfil ou colocada pelo administrador na Central
   photo          String?
+  // APROVAÇÃO DO CADASTRO (anti-malfeitor): o registo público entra como
+  // "pendente" e só se torna ACTIVO quando o ADMINISTRADOR PRINCIPAL o
+  // aprova; se for recusado, fica "rejeitado" com a mensagem do motivo.
+  // "pendente" | "aprovado" | "rejeitado"
+  status         String    @default("aprovado")
+  // mensagem do administrador quando o cadastro foi RECUSADO — o cliente
+  // vê-a no ecrã de recusa ao entrar na app
+  rejectReason   String?
+  // auditoria da decisão (quem aprovou/recusou e quando)
+  reviewedAt     DateTime?
+  reviewedByName String?
   // banimento por má conduta (aplicado pelo administrador)
   banned         Boolean   @default(false)
   banReason      String?

@@ -1,13 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin, hashPassword, WORKER_ROLES, DELIVERY_ROLES } from '@/lib/auth'
+import { requireAdmin, hashPassword, WORKER_ROLES, DELIVERY_ROLES, isMainAdmin } from '@/lib/auth'
 import { emitRealtime } from '@/lib/realtime-emitter'
+
+// campos do cliente devolvidos em cada perfil (inclui o estado de
+// APROVAÇÃO do cadastro para a lista da Central)
+const CUSTOMER_SELECT = {
+  id: true,
+  name: true,
+  phone: true,
+  banned: true,
+  photo: true,
+  status: true,
+  rejectReason: true,
+  address: true,
+  _count: { select: { orders: true } },
+} as const
 
 type Params = { params: Promise<{ id: string }> }
 
 /**
  * PATCH /api/users/[id] — o administrador edita qualquer perfil:
- * dados, senha, tipo, activar/desactivar, BANIR cliente por má conduta.
+ * dados, senha, tipo, activar/desactivar, BANIR cliente por má conduta e
+ * APROVAR / RECUSAR o cadastro de clientes (apenas administrador principal).
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
@@ -71,6 +86,80 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.banReason = body.banned ? String(body.banReason ?? 'Má conduta') : null
     }
 
+    // ---------- APROVAÇÃO / RECUSA DO CADASTRO DO CLIENTE ----------
+    // Poder EXCLUSIVO do ADMINISTRADOR PRINCIPAL (o primeiro ADMIN do
+    // sistema): aprovar o cadastro (cliente passa a ACTIVO) ou recusar,
+    // enviando uma mensagem com o motivo que o cliente vê na app.
+    let approvalDecision: 'aprovado' | 'rejeitado' | null = null
+    // registo do cliente já com a decisão aplicada (devolvido na resposta)
+    let customer: {
+      id: string
+      name: string
+      phone: string
+      banned: boolean
+      photo: string | null
+      status: string
+      rejectReason: string | null
+      address: string
+      _count: { orders: number }
+    } | null = null
+    if (body.approval != null) {
+      const decision = String(body.approval)
+      if (decision !== 'aprovado' && decision !== 'rejeitado') {
+        return NextResponse.json(
+          { error: 'Decisão inválida: aprovado ou rejeitado.' },
+          { status: 400 }
+        )
+      }
+      if (user.role !== 'CLIENTE' || !user.customerId) {
+        return NextResponse.json(
+          { error: 'A aprovação só se aplica a cadastros de clientes.' },
+          { status: 400 }
+        )
+      }
+      if (!(await isMainAdmin(admin.id))) {
+        return NextResponse.json(
+          {
+            error:
+              'Apenas o ADMINISTRADOR PRINCIPAL pode aprovar ou recusar cadastros de clientes.',
+          },
+          { status: 403 }
+        )
+      }
+
+      const rejectReason = String(body.rejectReason ?? '').trim()
+      if (decision === 'rejeitado' && rejectReason.length < 5) {
+        return NextResponse.json(
+          {
+            error:
+              'Escreva a mensagem que o cliente vai receber a explicar porqué não foi aceite (mínimo 5 caracteres).',
+          },
+          { status: 400 }
+        )
+      }
+
+      approvalDecision = decision
+      // o estado de aprovação vive no registo do CLIENTE (não no perfil)
+      customer = await db.customer.update({
+        where: { id: user.customerId },
+        data: {
+          status: decision,
+          rejectReason: decision === 'rejeitado' ? rejectReason : null,
+          reviewedAt: new Date(),
+          reviewedByName: admin.name,
+        },
+        select: CUSTOMER_SELECT,
+      })
+
+      // avisa a app do cliente NA HORA: aprovado → entra na app;
+      // recusado → passa a ver o ecrã com a mensagem do administrador
+      await emitRealtime('auth:approval', {
+        customerId: user.customerId,
+        status: decision,
+        rejectReason: decision === 'rejeitado' ? rejectReason : null,
+      })
+    }
+
     // mudança de tipo de perfil
     if (body.role != null) {
       const newRole = String(body.role).toUpperCase()
@@ -125,25 +214,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { id },
       data,
       include: {
-        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, _count: { select: { orders: true } } } },
+        customer: { select: CUSTOMER_SELECT },
         courier: { select: { id: true, name: true, vehicle: true, plate: true, available: true } },
       },
     })
 
+    // registo do cliente devolvido: o actualizado pela decisão/banimento
+    // ou o que vem já no perfil actualizado
+    if (!customer) customer = updated.customer
+
     // banimento reflecte-se no registo do cliente (bloqueia pedidos)
-    let customer = updated.customer
-    if (user.customerId && body.banned != null) {
+    if (user.customerId && body.banned != null && !approvalDecision) {
       customer = await db.customer.update({
         where: { id: user.customerId },
         data: { banned: Boolean(body.banned), banReason: data.banReason as string | null },
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          banned: true,
-          photo: true,
-          _count: { select: { orders: true } },
-        },
+        select: CUSTOMER_SELECT,
       })
       // avisa o cliente em tempo real (a app dele mostra o bloqueio na hora)
       await emitRealtime('auth:banned', {

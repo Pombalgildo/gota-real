@@ -44,6 +44,27 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // APROVAÇÃO DO CADASTRO: só clientes com o cadastro APROVADO pelo
+    // administrador principal podem fazer pedidos — cadastros pendentes
+    // ou recusados ficam bloqueados (anti-malfeitor / anti-brincadeira)
+    if (customer.status === 'pendente') {
+      return NextResponse.json(
+        {
+          error:
+            'O seu cadastro ainda não foi aprovado pelo administrador. Assim que for aprovado, os pedidos ficam disponíveis — não é preciso fazer nada.',
+        },
+        { status: 403 }
+      )
+    }
+    if (customer.status === 'rejeitado') {
+      return NextResponse.json(
+        {
+          error: `O seu cadastro não foi aceite${customer.rejectReason ? `: ${customer.rejectReason}` : ''}. Contacte a Gota REAL para mais esclarecimentos.`,
+        },
+        { status: 403 }
+      )
+    }
+
     // valida produtos e stock
     const productIds = items.map((i: { productId: string }) => i.productId)
     const products = await db.product.findMany({ where: { id: { in: productIds }, active: true } })

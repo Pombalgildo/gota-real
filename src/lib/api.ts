@@ -108,6 +108,11 @@ export function updateUser(
     vehicle: string
     plate: string
     photo: string | null
+    /** APROVAÇÃO DO CADASTRO DO CLIENTE — apenas o administrador
+     *  principal: "aprovado" activa a conta, "rejeitado" recusa com a
+     *  mensagem (rejectReason) que o cliente passa a ver na app. */
+    approval: 'aprovado' | 'rejeitado'
+    rejectReason: string
   }>
 ) {
   return request<{ user: User }>(`/api/users/${id}`, {
@@ -168,13 +173,18 @@ export function registerCustomer(body: {
   longitude?: number | null
   locationSource?: string
   locationNote?: string | null
+  /** FOTO DO CLIENTE (data URL base64) — enviada já no cadastro para o
+   *  administrador avaliar a aprovação */
+  photo?: string | null
 }) {
-  // o registo devolve a SESSÃO já aberta (auto-entrada na app)
+  // o registo devolve a SESSÃO já aberta (auto-entrada na app) e o
+  // aviso de que o cadastro está À ESPERA da aprovação do administrador
   return request<{
     customer: Customer
     token?: string | null
     user?: User | null
     updatedExisting?: boolean
+    pendingApproval?: boolean
   }>('/api/customers', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -400,6 +410,16 @@ export interface EventFeedback {
   customer?: { id: string; name: string; phone: string } | null
 }
 
+/** Registo enxuto de um CADASTRO DE CLIENTE à espera de aprovação
+ *  (visto apenas pelo administrador — alimentação do alarme «signup»). */
+export interface EventSignup {
+  id: string
+  name: string
+  phone: string
+  photo?: string | null
+  createdAt: string
+}
+
 /**
  * Alimentação do centro de alertas: devolve apenas o que precisa de
  * atenção agora, conforme o papel (equipa, entregador ou cliente).
@@ -418,6 +438,8 @@ export function fetchEvents(params: {
     scope: 'staff' | 'courier' | 'customer' | 'none'
     orders: EventOrder[]
     feedbacks: EventFeedback[]
+    /** cadastros pendentes (apenas administrador) */
+    signups?: EventSignup[]
   }>(`/api/events${qs ? `?${qs}` : ''}`, {
     headers: params.token ? { Authorization: `Bearer ${params.token}` } : undefined,
   })

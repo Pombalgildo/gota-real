@@ -81,6 +81,25 @@ export async function requireAdmin(req: NextRequest) {
   return user
 }
 
+/**
+ * O ADMINISTRADOR PRINCIPAL é o primeiro perfil ADMIN criado no sistema
+ * (a conta fundadora, criada na instalação). É o ÚNICO com poder para
+ * APROVAR ou RECUSAR o cadastro de novos clientes — evita que outros
+ * administradores criados depois decidam sozinhos quem entra.
+ */
+export async function getMainAdminId(): Promise<string | null> {
+  const first = await db.user.findFirst({
+    where: { role: 'ADMIN', active: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  return first?.id ?? null
+}
+
+/** Confirma se o utilizador indicado é o administrador principal. */
+export async function isMainAdmin(userId: string): Promise<boolean> {
+  return (await getMainAdminId()) === userId
+}
+
 /** Exige um trabalhador autenticado (administrador ou perfil criado por ele). */
 export async function requireStaff(req: NextRequest) {
   const user = await getUserFromRequest(req)

@@ -58,6 +58,31 @@ export async function POST(req: NextRequest) {
       if (!access.ok) {
         return NextResponse.json({ error: access.error }, { status: access.status })
       }
+
+      // APROVAÇÃO DO CADASTRO: mensagens só de clientes com cadastro
+      // APROVADO — cadastros pendentes/recusados não chegam à central
+      // (o ecrã de estado do cliente já explica o motivo)
+      const sender = access.user
+      if (sender && sender.role === 'CLIENTE' && sender.customer) {
+        if (sender.customer.status === 'pendente') {
+          return NextResponse.json(
+            {
+              error:
+                'O seu cadastro ainda não foi aprovado. Assim que o administrador o aprovar, pode enviar mensagens.',
+            },
+            { status: 403 }
+          )
+        }
+        if (sender.customer.status === 'rejeitado') {
+          return NextResponse.json(
+            {
+              error:
+                'O seu cadastro não foi aceite — não é possível enviar mensagens. Contacte a Gota REAL.',
+            },
+            { status: 403 }
+          )
+        }
+      }
     }
 
     const feedback = await db.feedback.create({

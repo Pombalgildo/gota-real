@@ -12,7 +12,7 @@ import { resizeImageToDataUrl } from '@/lib/image'
 import { fetchReports, type ReportData } from '@/lib/api'
 import { LogoutButton } from '@/components/app/LoginDialog'
 import { InstallPrompt } from '@/components/app/InstallPrompt'
-import { AlertBell, AlertsSettingsCard } from '@/components/app/AlertCenter'
+import { AlertBell, AlertsSettingsCard, useAlerts } from '@/components/app/AlertCenter'
 import {
   orderAction,
   respondFeedback,
@@ -35,7 +35,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Order, Product, User as UserDTO } from '@/lib/types'
-import { ROLE_LABEL, ROLE_DESCRIPTION, WORKER_ROLES, ORDER_MANAGER_ROLES, CATALOG_ROLES } from '@/lib/types'
+import { ROLE_LABEL, ROLE_DESCRIPTION, WORKER_ROLES, ORDER_MANAGER_ROLES, CATALOG_ROLES, CUSTOMER_STATUS_LABEL, CUSTOMER_STATUS_BADGE } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
   ArrowLeft,
@@ -52,6 +52,7 @@ import {
   Clock,
   Droplets,
   Headset,
+  Hourglass,
   ImagePlus,
   KeyRound,
   Loader2,
@@ -74,7 +75,10 @@ import {
   Truck,
   Trash2,
   User,
+  UserCheck,
   UserCog,
+  UserPlus,
+  UserX,
   Users,
   Warehouse,
   WifiOff,
@@ -208,6 +212,9 @@ function CentralTabs({ role }: { role: string }) {
   // a equipa directo ao pedido/mensagem que originou o aviso
   const centralTab = useAppStore((s) => s.centralTab)
   const setCentralTab = useAppStore((s) => s.setCentralTab)
+  // cadastros pendentes: badge na aba Perfis para o administrador não
+  // escapar nenhuma aprovação
+  const { counts } = useAlerts()
   // abas conforme o perfil: só o ADMIN vê Perfis e Ajustes
   const canManageOrders = ORDER_MANAGER_ROLES.includes(role)
   const canManageCatalog = CATALOG_ROLES.includes(role)
@@ -241,7 +248,15 @@ function CentralTabs({ role }: { role: string }) {
             value={t.value}
             className="h-auto min-w-0 rounded-lg px-1 py-2.5 text-[11px] font-bold data-[state=active]:bg-white sm:text-xs"
           >
-            <t.icon className="h-4 w-4 shrink-0" />
+            <span className="relative flex shrink-0 items-center justify-center">
+              <t.icon className="h-4 w-4 shrink-0" />
+              {/* cadastros à espera de decisão: badge na aba Perfis */}
+              {t.value === 'perfis' && counts.signups > 0 && (
+                <span className="absolute -right-2.5 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-black text-white shadow">
+                  {counts.signups}
+                </span>
+              )}
+            </span>
             <span className="min-w-0 truncate">{t.label}</span>
           </TabsTrigger>
         ))}
@@ -1159,9 +1174,52 @@ function UsersPanel() {
   const [editing, setEditing] = useState<UserDTO | null>(null)
   const [banning, setBanning] = useState<UserDTO | null>(null)
   const [deleting, setDeleting] = useState<UserDTO | null>(null)
+  const [rejecting, setRejecting] = useState<UserDTO | null>(null)
 
   const workers = users.filter((u) => (WORKER_ROLES as string[]).includes(u.role))
   const clients = users.filter((u) => u.role === 'CLIENTE')
+
+  // ---------- aprovação de cadastros ----------
+  // pendentes = acabaram de registar-se e estão à espera da decisão;
+  // recusados = o administrador já não aceitou (ficam com a mensagem)
+  const pending = clients.filter((u) => u.customer?.status === 'pendente')
+  const rejected = clients.filter((u) => u.customer?.status === 'rejeitado')
+  const activeClients = clients.filter(
+    (u) => (u.customer?.status ?? 'aprovado') === 'aprovado' || u.customer?.status == null
+  )
+
+  // O ADMINISTRADOR PRINCIPAL é o primeiro perfil ADMIN criado no sistema
+  // (conta fundadora) — só ele pode APROVAR ou RECUSAR cadastros
+  const mainAdmin = [...workers]
+    .filter((u) => u.role === 'ADMIN')
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))[0]
+  const isMainAdmin = !!auth?.user && mainAdmin?.id === auth.user.id
+
+  async function decide(u: UserDTO, decision: 'aprovado' | 'rejeitado', rejectReason?: string) {
+    try {
+      await apiUpdateUser(token!, u.id, {
+        approval: decision,
+        ...(decision === 'rejeitado' && rejectReason ? { rejectReason } : {}),
+      })
+      reload()
+      toast({
+        title:
+          decision === 'aprovado'
+            ? `Cadastro de ${u.name} APROVADO ✅`
+            : `Cadastro de ${u.name} recusado — o cliente vai receber a mensagem`,
+        description:
+          decision === 'aprovado'
+            ? 'O cliente já pode entrar na app e fazer pedidos — é avisado na hora.'
+            : undefined,
+      })
+    } catch (err) {
+      toast({
+        title: 'Decisão não registada',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   async function act(promise: Promise<unknown>, okMessage: string) {
     try {
@@ -1183,6 +1241,37 @@ function UsersPanel() {
 
   return (
     <div className="space-y-4">
+      {/* ---------- cadastros à espera de aprovação ---------- */}
+      {pending.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="rounded-2xl border-2 border-amber-300 bg-amber-50/70 p-3.5">
+            <p className="flex items-center gap-2 text-sm font-black text-amber-800">
+              <Hourglass className="h-4.5 w-4.5 text-amber-500" /> Cadastros à espera de aprovação ({pending.length})
+            </p>
+            <p className="mt-1 text-xs leading-snug text-amber-800/80">
+              Cada cadastro novo fica <b>bloqueado</b> até ser aprovado — o cliente não faz pedidos
+              nem envia mensagens. Analise os dados e a foto, e <b>APROVE</b> ou <b>RECUSE</b> com uma
+              mensagem explicando o motivo.
+              {!isMainAdmin && (
+                <b className="block pt-1 text-amber-900">
+                  Apenas o administrador principal ({mainAdmin?.name ?? '—'}) pode decidir.
+                </b>
+              )}
+            </p>
+          </div>
+
+          {pending.map((u) => (
+            <PendingSignupCard
+              key={u.id}
+              user={u}
+              canDecide={isMainAdmin}
+              onApprove={() => decide(u, 'aprovado')}
+              onReject={() => setRejecting(u)}
+            />
+          ))}
+        </section>
+      )}
+
       {/* instrução */}
       <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-secondary/50 p-3.5">
         <p className="flex items-center gap-2 text-sm font-black text-navy">
@@ -1191,7 +1280,8 @@ function UsersPanel() {
         <p className="mt-1 text-xs leading-snug text-muted-foreground">
           Crie perfis de <b>trabalhadores</b> — administradores, atendentes (pedidos), editores (loja),
           motoboys e motoristas — com senha própria e foto, <b>elimine qualquer perfil</b> e
-          <b> bane clientes por má conduta</b>. Os clientes banidos ficam impedidos de fazer pedidos.
+          <b> bane clientes por má conduta</b>. Os cadastros novos de clientes ficam à espera de
+          <b> aprovação do administrador principal</b> antes de ficarem activos.
         </p>
       </div>
 
@@ -1221,14 +1311,14 @@ function UsersPanel() {
       {/* ---------- clientes ---------- */}
       <section className="space-y-2.5">
         <h3 className="flex items-center gap-1.5 text-sm font-black text-navy">
-          <User className="h-4 w-4 text-primary" /> Clientes ({clients.length})
+          <User className="h-4 w-4 text-primary" /> Clientes ({activeClients.length})
         </h3>
-        {clients.length === 0 ? (
+        {activeClients.length === 0 ? (
           <p className="rounded-2xl border-2 border-dashed border-input bg-white/60 p-4 text-center text-xs text-muted-foreground">
-            Ainda sem clientes registados com perfil.
+            Ainda sem clientes com cadastro aprovado.
           </p>
         ) : (
-          clients.map((u) => (
+          activeClients.map((u) => (
             <UserRow
               key={u.id}
               user={u}
@@ -1240,6 +1330,30 @@ function UsersPanel() {
           ))
         )}
       </section>
+
+      {/* ---------- cadastros recusados ---------- */}
+      {rejected.length > 0 && (
+        <section className="space-y-2.5">
+          <h3 className="flex items-center gap-1.5 text-sm font-black text-navy">
+            <UserX className="h-4 w-4 text-red-500" /> Cadastros recusados ({rejected.length})
+          </h3>
+          {rejected.map((u) => (
+            <UserRow
+              key={u.id}
+              user={u}
+              isSelf={false}
+              onEdit={() => setEditing(u)}
+              onBan={() => setBanning(u)}
+              onDelete={() => setDeleting(u)}
+              onApprove={
+                isMainAdmin
+                  ? () => decide(u, 'aprovado')
+                  : undefined
+              }
+            />
+          ))}
+        </section>
+      )}
 
       {/* dialog: criar perfil de trabalhador */}
       <CreateUserDialog
@@ -1274,6 +1388,18 @@ function UsersPanel() {
           onDone={() => {
             reload()
             setBanning(null)
+          }}
+        />
+      )}
+
+      {/* dialog: RECUSAR cadastro com mensagem para o cliente */}
+      {rejecting && (
+        <RejectSignupDialog
+          user={rejecting}
+          onClose={() => setRejecting(null)}
+          onConfirm={(reason) => {
+            decide(rejecting, 'rejeitado', reason)
+            setRejecting(null)
           }}
         />
       )}
@@ -1321,12 +1447,15 @@ function UserRow({
   onEdit,
   onBan,
   onDelete,
+  onApprove,
 }: {
   user: UserDTO
   isSelf: boolean
   onEdit: () => void
   onBan?: () => void
   onDelete: () => void
+  /** cadastro recusado: voltar a aprovar (só administrador principal) */
+  onApprove?: () => void
 }) {
   const { auth } = useAppStore()
   const token = auth?.token ?? null
@@ -1413,6 +1542,15 @@ function UserRow({
           <Badge variant="outline" className={cn('text-[10px]', roleBadge)}>
             {ROLE_LABEL[user.role] ?? user.role}
           </Badge>
+          {/* estado de APROVAÇÃO do cadastro do cliente */}
+          {user.role === 'CLIENTE' && user.customer?.status && user.customer.status !== 'aprovado' && (
+            <Badge
+              variant="outline"
+              className={cn('text-[10px]', CUSTOMER_STATUS_BADGE[user.customer.status] ?? '')}
+            >
+              {CUSTOMER_STATUS_LABEL[user.customer.status] ?? user.customer.status}
+            </Badge>
+          )}
           {user.banned ? (
             <Badge variant="outline" className="border-red-200 bg-red-50 text-[10px] text-red-700">
               banido
@@ -1431,11 +1569,30 @@ function UserRow({
         </p>
       )}
 
+      {/* motivo da recusa do cadastro (o cliente vê esta mensagem na app) */}
+      {user.role === 'CLIENTE' && user.customer?.status === 'rejeitado' && user.customer.rejectReason && (
+        <p className="mt-2 rounded-lg bg-red-50 p-2 text-[11px] font-semibold leading-snug text-red-700">
+          Mensagem enviada ao cliente: “{user.customer.rejectReason}”
+        </p>
+      )}
+
       {/* acções do administrador */}
       <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-border pt-2.5">
         <Button size="sm" variant="outline" className="h-8 rounded-full px-3 text-xs font-bold" onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" /> Editar
         </Button>
+        {/* cadastro recusado: o administrador principal pode REVERTER a
+            decisão e activar o cliente */}
+        {onApprove && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 rounded-full border-emerald-200 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+            onClick={onApprove}
+          >
+            <UserCheck className="h-3.5 w-3.5" /> Aprovar agora
+          </Button>
+        )}
         {onBan &&
           (user.banned ? (
             <Button
@@ -1491,6 +1648,157 @@ function UserRow({
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * Cartão de um CADASTRO DE CLIENTE à espera de aprovação.
+ * Mostra a foto e os dados enviados no registo; o administrador
+ * principal decide APROVAR (activa a conta) ou RECUSAR (com mensagem).
+ */
+function PendingSignupCard({
+  user,
+  canDecide,
+  onApprove,
+  onReject,
+}: {
+  user: UserDTO
+  canDecide: boolean
+  onApprove: () => void
+  onReject: () => void
+}) {
+  return (
+    <div className="rounded-2xl border-2 border-amber-200 bg-white p-3.5 shadow-md">
+      <div className="flex items-start gap-3">
+        <Avatar
+          photo={user.photo ?? user.customer?.photo ?? null}
+          name={user.name}
+          className="h-14 w-14 rounded-2xl"
+          icon={<User className="h-6 w-6" />}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-black text-navy">{user.name}</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {user.phone || '—'}
+            {user.customer?.address ? ` · ${user.customer.address}` : ''}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            registou-se em {formatDateTime(user.createdAt)}
+            {!user.customer?.photo && !user.photo ? ' · sem foto' : ''}
+          </p>
+        </div>
+        <Badge variant="outline" className="shrink-0 border-amber-200 bg-amber-50 text-[10px] text-amber-700">
+          <Hourglass className="mr-1 h-3 w-3" /> {CUSTOMER_STATUS_LABEL.pendente}
+        </Badge>
+      </div>
+
+      {canDecide ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button
+            size="sm"
+            className="h-10 rounded-xl bg-emerald-600 text-xs font-black text-white shadow-md hover:bg-emerald-700"
+            onClick={onApprove}
+          >
+            <UserCheck className="h-4 w-4" /> APROVAR
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-10 rounded-xl border-red-200 text-xs font-black text-red-600 hover:bg-red-50"
+            onClick={onReject}
+          >
+            <UserX className="h-4 w-4" /> RECUSAR
+          </Button>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-xl bg-secondary/60 p-2 text-center text-[11px] font-bold leading-snug text-muted-foreground">
+          Sem permissão para decidir — apenas o administrador principal
+          aprova ou recusa cadastros de clientes.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Dialog: RECUSAR o cadastro de um cliente. A mensagem escrita aqui é
+ * enviada ao cliente — ele passa a vê-la no ecrã de recusa da app.
+ */
+function RejectSignupDialog({
+  user,
+  onClose,
+  onConfirm,
+}: {
+  user: UserDTO
+  onClose: () => void
+  onConfirm: (reason: string) => void
+}) {
+  const [reason, setReason] = useState('')
+  const [sending, setSending] = useState(false)
+
+  // sugestões rápidas de motivos (toque preenche a mensagem)
+  const SUGGESTIONS = [
+    'Não conseguimos confirmar os seus dados. Contacte-nos pelo WhatsApp para regularizar a situação.',
+    'A zona de entrega indicada no cadastro está fora da nossa área de cobertura.',
+    'Os dados do cadastro parecem incompletos ou inválidos. Faça um novo cadastro com o nome completo e o telefone correcto.',
+  ]
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-red-700">Recusar cadastro de {user.name}</DialogTitle>
+          <DialogDescription>
+            O cliente <b>{user.name}</b> ({user.phone || 'sem telefone'}) deixa de poder fazer
+            pedidos e passa a ver a mensagem abaixo sempre que entrar na app. Explique o motivo
+            da recusa.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={4}
+            placeholder="Ex.: Não conseguimos confirmar os seus dados. Contacte-nos pelo WhatsApp…"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {SUGGESTIONS.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setReason(s)}
+                className="rounded-full border border-border bg-white px-2.5 py-1 text-[10px] font-bold text-muted-foreground transition-all hover:border-red-200 hover:text-red-600"
+              >
+                sugestão {i + 1}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] leading-snug text-muted-foreground">
+            Mínimo 5 caracteres. A decisão pode ser revertida mais tarde na secção
+            «Cadastros recusados».
+          </p>
+        </div>
+
+        <DialogFooter className="flex-row gap-2">
+          <Button variant="outline" className="flex-1 font-bold" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            className="flex-1 font-black"
+            disabled={reason.trim().length < 5 || sending}
+            onClick={() => {
+              setSending(true)
+              onConfirm(reason.trim())
+            }}
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-4 w-4" />}
+            RECUSAR CADASTRO
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -20,10 +20,12 @@ import { BrandLogo } from '@/components/app/Brand'
 import { Avatar } from '@/components/app/Avatar'
 import { AlertCenter, AlertCountBadge, useAlerts } from '@/components/app/AlertCenter'
 import { getRealtimeSocket } from '@/lib/realtime-client'
+import { playArrivalChime, unlockAudio } from '@/lib/alarm-sound'
 import { cn } from '@/lib/utils'
 import type { CustomerTab } from '@/store/app-store'
 import { CENTRAL_ROLES, DELIVERY_ROLES, ROLE_LABEL } from '@/lib/types'
 import {
+  Hourglass,
   Home,
   MessageSquareHeart,
   ReceiptText,
@@ -31,6 +33,7 @@ import {
   ShoppingBasket,
   Store,
   User,
+  UserX,
 } from 'lucide-react'
 
 const NAV: { key: CustomerTab; label: string; icon: typeof Home }[] = [
@@ -63,15 +66,24 @@ export function GotaRealApp() {
     fetchMe(token)
       .then((res) => {
         if (!alive) return
-        // dados frescos do cliente (ex.: banimento aplicado entretanto)
+        // dados frescos do cliente (ex.: banimento ou decisão de aprovação
+        // aplicados entretanto pela central)
         if (res.customer) {
           const current = useAppStore.getState().customer
           if (
             current &&
             (res.customer.banned !== current.banned ||
-              res.customer.banReason !== current.banReason)
+              res.customer.banReason !== current.banReason ||
+              res.customer.status !== current.status ||
+              res.customer.rejectReason !== current.rejectReason)
           ) {
-            useAppStore.getState().setCustomer({ ...current, banned: res.customer.banned, banReason: res.customer.banReason ?? null })
+            useAppStore.getState().setCustomer({
+              ...current,
+              banned: res.customer.banned,
+              banReason: res.customer.banReason ?? null,
+              status: res.customer.status,
+              rejectReason: res.customer.rejectReason ?? null,
+            })
           }
         }
       })
@@ -159,11 +171,105 @@ function BannedScreen() {
   )
 }
 
+/**
+ * Ecrã de CADASTRO À ESPERA DE APROVAÇÃO: o cliente registou-se, mas só
+ * entra na app quando o administrador principal aprovar o cadastro.
+ * Actualiza-se sozinho (sockets + verificação periódica) — no momento
+ * da aprovação o cliente entra sem recarregar nada.
+ */
+function PendingApprovalScreen() {
+  const { customer, logout } = useAppStore()
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center gota-gradient px-6 text-center">
+      <span className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 text-white shadow-inner ring-1 ring-white/25">
+        <Hourglass className="h-10 w-10 animate-pulse" />
+      </span>
+      <h1 className="mt-5 text-xl font-black text-white">Cadastro recebido! 💧</h1>
+      <p className="mt-2 max-w-sm text-sm leading-relaxed text-[#cfe7f8]">
+        Obrigado, <b>{customer?.name?.split(' ')[0]}</b>! O seu cadastro foi enviado e está a ser
+        analisado pelo administrador. Assim que for <b>aprovado</b>, esta tela muda sozinha e
+        você já pode pedir a sua água — não precisa de fazer nada.
+      </p>
+      <p className="mt-3 max-w-xs rounded-2xl bg-white/10 p-3 text-[11px] leading-snug text-white/80 ring-1 ring-white/15">
+        ⏳ Enquanto aguarda, pode fechar a app. Aviso sonoro e notificação chegam no momento
+        da aprovação.
+      </p>
+      <LogoutButton label="Sair da conta" />
+    </div>
+  )
+}
+
+/**
+ * Ecrã de CADASTRO RECUSADO: mostra ao cliente a mensagem que o
+ * administrador escreveu ao recusar o cadastro.
+ */
+function RejectedScreen() {
+  const { customer, logout } = useAppStore()
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-red-50 px-6 text-center">
+      <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-red-100 text-red-600 shadow-inner">
+        <UserX className="h-10 w-10" />
+      </span>
+      <h1 className="mt-5 text-xl font-black text-red-700">Cadastro não aceite</h1>
+      <p className="mt-2 max-w-sm text-sm leading-relaxed text-red-900/80">
+        O seu cadastro na Gota REAL não foi aprovado pelo administrador.
+        {customer?.rejectReason ? (
+          <>
+            <br />
+            <b>“{customer.rejectReason}”</b>
+          </>
+        ) : null}
+      </p>
+      <p className="mt-2 max-w-sm text-xs leading-relaxed text-red-900/60">
+        Se acredita que foi um engano, contacte-nos pelo WhatsApp ou telefone para revermos o
+        seu caso. Se a situação for regularizada, a sua conta é activada na hora.
+      </p>
+      <LogoutButton label="Sair da conta" />
+    </div>
+  )
+}
+
+/**
+ * AVISO DE APROVAÇÃO: quando o administrador aprova o cadastro, o cliente
+ * ouve uma campainha alegre, recebe um toast e (com a app em segundo
+ * plano) uma notificação do sistema — mesmo sem WebSockets, a verificação
+ * periódica de 30 s apanha a mudança.
+ */
+function announceApproval(name: string) {
+  try {
+    unlockAudio()
+    playArrivalChime(2)
+  } catch {
+    // ignora — alguns navegadores bloqueiam áudio sem interacção
+  }
+  try {
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'granted' &&
+      document.hidden
+    ) {
+      const n = new Notification('💧 Gota REAL — Cadastro aprovado!', {
+        body: `Bem-vindo(a), ${name}! O seu cadastro foi aprovado — já pode fazer os seus pedidos.`,
+        icon: '/icon-192.png',
+        tag: 'signup-approved',
+      })
+      n.onclick = () => {
+        window.focus()
+        n.close()
+      }
+    }
+  } catch {
+    // WebView do APK sem suporte — ignora
+  }
+}
+
 function CustomerApp() {
   const { customer, auth, tab, setTab, cart, setCheckoutOpen, syncCartProducts, setCustomer, logout } = useAppStore()
   const { products } = useProducts()
   // avisos do cliente: mudanças de estado dos pedidos + respostas às mensagens
   const { alerts } = useAlerts()
+  const { toast } = useToast()
   const orderAlertCount = alerts.filter((a) => a.kind === 'status' || a.kind === 'cancel').length
   const messageAlertCount = alerts.filter((a) => a.kind === 'message').length
   const totals = cartTotals(cart)
@@ -177,7 +283,8 @@ function CustomerApp() {
     if (products.length > 0) syncCartProducts(products)
   }, [products, syncCartProducts])
 
-  // se o administrador banir este cliente, o bloqueio aparece na hora
+  // se o administrador banir este cliente, o bloqueio aparece na hora;
+  // se APROVAR ou RECUSAR o cadastro, a decisão também chega ao segundo
   useEffect(() => {
     const socket = getRealtimeSocket()
     const onBan = (data: { customerId?: string; banned?: boolean; banReason?: string | null }) => {
@@ -188,28 +295,66 @@ function CustomerApp() {
         banReason: data.banReason ?? null,
       } as typeof customer)
     }
+    const onApproval = (data: {
+      customerId?: string
+      status?: string
+      rejectReason?: string | null
+    }) => {
+      if (!customer || !data || data.customerId !== customer.id) return
+      setCustomer({
+        ...customer,
+        status: data.status ?? customer.status,
+        rejectReason: data.rejectReason ?? null,
+      } as typeof customer)
+      // aprovado neste momento → campainha + toast de boas-vindas
+      if (customer.status === 'pendente' && data.status === 'aprovado') {
+        announceApproval(customer.name)
+        toast({
+          title: 'Cadastro aprovado! 💧',
+          description: 'Bem-vindo(a)! Já pode escolher a sua água e fazer o primeiro pedido.',
+        })
+      }
+    }
     socket.on('auth:banned', onBan)
+    socket.on('auth:approval', onApproval)
     return () => {
       socket.off('auth:banned', onBan)
+      socket.off('auth:approval', onApproval)
     }
   }, [customer, setCustomer])
 
   // reserva (sem WebSockets, ex. produção na Vercel): confirma o estado
-  // da conta junto à base de dados a cada 30s — o banimento aplica-se
-  // mesmo que o cliente mantenha a app aberta sem recarregar.
-  // Se a conta tiver sido ELIMINADA (401/403/404), a app sai na hora —
-  // é a segunda barreira contra “conta eliminada mas operacional”.
+  // da conta junto à base de dados a cada 30s — o banimento e a decisão
+  // de aprovação aplicam-se mesmo que o cliente mantenha a app aberta sem
+  // recarregar. Se a conta tiver sido ELIMINADA (401/403/404), a app sai
+  // na hora — é a segunda barreira contra “conta eliminada mas operacional”.
   useEffect(() => {
     if (!customer) return
     const check = async () => {
       try {
         const { customer: fresh } = await fetchCustomer(customer.id, token)
-        if (fresh && (fresh.banned !== customer.banned || fresh.banReason !== customer.banReason)) {
+        if (
+          fresh &&
+          (fresh.banned !== customer.banned ||
+            fresh.banReason !== customer.banReason ||
+            fresh.status !== customer.status ||
+            fresh.rejectReason !== customer.rejectReason)
+        ) {
           setCustomer({
             ...customer,
             banned: fresh.banned,
             banReason: fresh.banReason,
+            status: fresh.status,
+            rejectReason: fresh.rejectReason,
           } as typeof customer)
+          // reserva sem sockets: a aprovação chegou pela sondagem periódica
+          if (customer.status === 'pendente' && fresh.status === 'aprovado') {
+            announceApproval(fresh.name)
+            toast({
+              title: 'Cadastro aprovado! 💧',
+              description: 'Bem-vindo(a)! Já pode escolher a sua água e fazer o primeiro pedido.',
+            })
+          }
         }
       } catch (err) {
         // sem rede: mantém o estado actual; sessão inválida → sai da conta
@@ -239,6 +384,10 @@ function CustomerApp() {
   }, [customer, logout])
 
   if (customer?.banned) return <BannedScreen />
+  // APROVAÇÃO DO CADASTRO: pendente → ecrã de aguardo; recusado → ecrã
+  // com a mensagem do administrador (nenhum pedido/mensagem passa daqui)
+  if (customer?.status === 'pendente') return <PendingApprovalScreen />
+  if (customer?.status === 'rejeitado') return <RejectedScreen />
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">

@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
     // ---------- Central: administrador e atendente (área de vendas) ----------
     if (role && (ORDER_MANAGER_ROLES as readonly string[]).includes(role)) {
-      const [orders, feedbacks] = await Promise.all([
+      const [orders, feedbacks, signups] = await Promise.all([
         db.order.findMany({
           // pendentes precisam de acção; disputados sem resposta também
           // (cliente reclamou que NÃO recebeu — anti-burla)
@@ -68,8 +68,31 @@ export async function GET(req: NextRequest) {
             customer: { select: { id: true, name: true, phone: true } },
           },
         }),
+        // CADASTROS DE CLIENTES À ESPERA DE APROVAÇÃO — apenas o ADMIN
+        // vê esta lista (é ele quem decide na aba Perfis); o alarme
+        // «novo cadastro» toca até ele ver o pedido
+        role === 'ADMIN'
+          ? db.customer.findMany({
+              where: { status: 'pendente' },
+              orderBy: { createdAt: 'desc' },
+              take: 20,
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                photo: true,
+                createdAt: true,
+              },
+            })
+          : Promise.resolve([]),
       ])
-      return NextResponse.json({ serverTime: new Date().toISOString(), scope: 'staff', orders, feedbacks })
+      return NextResponse.json({
+        serverTime: new Date().toISOString(),
+        scope: 'staff',
+        orders,
+        feedbacks,
+        signups,
+      })
     }
 
     // ---------- Entregador: motoboy e motorista ----------

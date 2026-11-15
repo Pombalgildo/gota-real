@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const users = await db.user.findMany({
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       include: {
-        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, _count: { select: { orders: true } } } },
+        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, status: true, rejectReason: true, address: true, _count: { select: { orders: true } } } },
         courier: { select: { id: true, name: true, vehicle: true, plate: true, available: true } },
       },
     })
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         ...(photo ? { photo } : {}),
       },
       include: {
-        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, _count: { select: { orders: true } } } },
+        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, status: true, rejectReason: true, address: true, _count: { select: { orders: true } } } },
         courier: { select: { id: true, name: true, vehicle: true, plate: true, available: true } },
       },
     })
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     const userWithLinks = await db.user.findUnique({
       where: { id: user.id },
       include: {
-        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, _count: { select: { orders: true } } } },
+        customer: { select: { id: true, name: true, phone: true, banned: true, photo: true, status: true, rejectReason: true, address: true, _count: { select: { orders: true } } } },
         courier: { select: { id: true, name: true, vehicle: true, plate: true, available: true } },
       },
     })

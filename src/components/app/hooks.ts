@@ -293,8 +293,11 @@ export function useUsers(token: string | null | undefined) {
     const socket = getRealtimeSocket()
     const onUsersUpdate = () => reload()
     socket.on('users:update', onUsersUpdate)
+    // cadastro novo de cliente: chega à hora à lista de aprovações
+    socket.on('signup:new', onUsersUpdate)
     return () => {
       socket.off('users:update', onUsersUpdate)
+      socket.off('signup:new', onUsersUpdate)
     }
   }, [reload])
 

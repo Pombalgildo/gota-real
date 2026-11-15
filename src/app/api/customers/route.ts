@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ensureSeed } from '@/lib/seed'
 import { verifyPassword, createSession, hashPassword, fallbackEmail, publicUser } from '@/lib/auth'
+import { emitRealtime } from '@/lib/realtime-emitter'
 
 // POST /api/customers - registar novo cliente (cria também o PERFIL DE LOGIN
 // e devolve a SESSÃO já aberta — o cliente entra na app sem passar pela
 // entrada manual).
+//
+// APROVAÇÃO OBRIGATÓRIA (anti-malfeitor): todo o cadastro NOVO entra com
+// status "pendente" — o cliente vê o ecrã de aguardo e só passa a usar a
+// app (fazer pedidos, enviar mensagens) quando o ADMINISTRADOR PRINCIPAL
+// o aprovar na Central. Se for recusado, recebe a mensagem do motivo.
 export async function POST(req: NextRequest) {
   try {
     await ensureSeed()
@@ -20,6 +26,7 @@ export async function POST(req: NextRequest) {
       longitude,
       locationSource,
       locationNote,
+      photo,
     } = body
 
     if (!name || !phone) {
@@ -30,6 +37,11 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedPhone = String(phone).trim()
+
+    // FOTO DO CLIENTE enviada no cadastro (data URL base64, comprimida no
+    // próprio aparelho) — ajuda o administrador a avaliar a aprovação
+    const photoValue =
+      typeof photo === 'string' && photo.startsWith('data:image/') ? photo : null
 
     const existing = await db.customer.findUnique({ where: { phone: normalizedPhone } })
     let customer
@@ -44,6 +56,10 @@ export async function POST(req: NextRequest) {
           longitude: longitude ?? existing.longitude,
           locationSource: locationSource ?? existing.locationSource,
           locationNote: locationNote ?? existing.locationNote,
+          // foto nova substitui a antiga; cadastro já aprovado mantém o
+          // estado (não volta a "pendente") — recusado/pendente continuam
+          // à espera da decisão do administrador principal
+          ...(photoValue ? { photo: photoValue } : {}),
         },
       })
     } else {
@@ -57,6 +73,10 @@ export async function POST(req: NextRequest) {
           longitude: longitude ?? null,
           locationSource: locationSource ?? 'auto',
           locationNote: locationNote ?? null,
+          ...(photoValue ? { photo: photoValue } : {}),
+          // CADASTRO NOVO: fica À ESPERA da aprovação do administrador
+          // principal antes de se tornar activo
+          status: 'pendente',
         },
       })
     }
@@ -83,6 +103,12 @@ export async function POST(req: NextRequest) {
         )
       }
       token = await createSession(existingUser.id)
+      // foto enviada no cadastro actualiza também o perfil de entrada
+      if (photoValue && photoValue !== existingUser.photo) {
+        await db.user
+          .update({ where: { id: existingUser.id }, data: { photo: photoValue } })
+          .catch(() => undefined)
+      }
     } else {
       const loginEmail =
         (typeof email === 'string' && email.trim()) || fallbackEmail(normalizedPhone)
@@ -96,6 +122,7 @@ export async function POST(req: NextRequest) {
             password: hashPassword(password || normalizedPhone),
             role: 'CLIENTE',
             customerId: customer.id,
+            ...(photoValue ? { photo: photoValue } : {}),
           },
         })
       } catch {
@@ -108,10 +135,21 @@ export async function POST(req: NextRequest) {
             password: hashPassword(password || normalizedPhone),
             role: 'CLIENTE',
             customerId: customer.id,
+            ...(photoValue ? { photo: photoValue } : {}),
           },
         })
       }
       token = await createSession(user.id)
+    }
+
+    // cadastro NOVO à espera de aprovação → avisa a central em tempo real
+    // (o administrador principal ouve o alarme de novo cadastro pendente)
+    if (customer.status === 'pendente' && !existing) {
+      await emitRealtime('signup:new', {
+        customerId: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+      }).catch(() => undefined)
     }
 
     return NextResponse.json({
@@ -119,6 +157,8 @@ export async function POST(req: NextRequest) {
       token,
       user: user ? publicUser(user) : null,
       updatedExisting: !!existing,
+      // o cadastro acabou de entrar e está À ESPERA de aprovação?
+      pendingApproval: customer.status === 'pendente' && !existing,
     })
   } catch (error) {
     console.error('[api/customers] erro:', error)

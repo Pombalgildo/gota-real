@@ -37,6 +37,23 @@ export const CATALOG_ROLES: string[] = ['ADMIN', 'EDITOR']
 /** Todos os perfis de trabalhador. */
 export const WORKER_ROLES: string[] = ['ADMIN', 'ATENDENTE', 'EDITOR', 'MOTOBOY', 'MOTORISTA']
 
+// ---------- Aprovação do cadastro de clientes ----------
+/** Estado do cadastro do cliente: entra "pendente" e só fica ACTIVO
+ *  depois de o ADMINISTRADOR PRINCIPAL o aprovar na Central. */
+export type CustomerStatus = 'pendente' | 'aprovado' | 'rejeitado'
+
+export const CUSTOMER_STATUS_LABEL: Record<string, string> = {
+  pendente: 'Aguarda aprovação',
+  aprovado: 'Aprovado',
+  rejeitado: 'Recusado',
+}
+
+export const CUSTOMER_STATUS_BADGE: Record<string, string> = {
+  pendente: 'border-amber-200 bg-amber-50 text-amber-700',
+  aprovado: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  rejeitado: 'border-red-200 bg-red-50 text-red-700',
+}
+
 // ---------- Utilizador (login por perfil) ----------
 export interface User {
   id: string
@@ -59,6 +76,10 @@ export interface User {
     phone: string
     banned: boolean
     photo?: string | null
+    // estado de aprovação do cadastro (pendente/aprovado/rejeitado)
+    status?: CustomerStatus | string
+    rejectReason?: string | null
+    address?: string
     _count?: { orders: number }
   } | null
   courier?: {
@@ -103,6 +124,12 @@ export interface Customer {
   locationNote?: string | null
   // foto de perfil (data URL base64)
   photo?: string | null
+  // APROVAÇÃO DO CADASTRO: "pendente" até o administrador principal
+  // decidir; "rejeitado" mostra a mensagem do motivo ao cliente
+  status: CustomerStatus | string
+  rejectReason?: string | null
+  reviewedAt?: string | null
+  reviewedByName?: string | null
   banned?: boolean
   banReason?: string | null
   createdAt: string

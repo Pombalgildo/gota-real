@@ -5,6 +5,7 @@ import { BrandLogo, BrandWordmark } from '@/components/app/Brand'
 import { LocationPicker, type PickedLocation } from '@/components/app/LocationPicker'
 import { LoginDialog } from '@/components/app/LoginDialog'
 import { InstallStripWelcome } from '@/components/app/InstallPrompt'
+import { PhotoPicker } from '@/components/app/Avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +14,7 @@ import { registerCustomer } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import {
   Droplets,
+  Hourglass,
   KeyRound,
   Loader2,
   LogIn,
@@ -30,6 +32,9 @@ export function OnboardingView() {
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  // FOTO DO CLIENTE — enviada já no cadastro; o administrador usa-a para
+  // avaliar a aprovação (anti-malfeitor / anti-brincadeira)
+  const [photo, setPhoto] = useState<string | null>(null)
   const [location, setLocation] = useState<PickedLocation | null>(null)
   const [locationMode, setLocationMode] = useState<'exata' | 'auto'>('exata')
   const [submitting, setSubmitting] = useState(false)
@@ -75,7 +80,7 @@ export function OnboardingView() {
     }
     setSubmitting(true)
     try {
-      const { customer, token, user } = await registerCustomer({
+      const { customer, token, user, pendingApproval } = await registerCustomer({
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
@@ -88,19 +93,25 @@ export function OnboardingView() {
           locationMode === 'exata'
             ? 'Local exacto de entrega confirmado no cadastro'
             : 'Localização automática provisória — actualize quando possível',
+        photo,
       })
       setCustomer(customer)
-      // o registo abre já a SESSÃO — o cliente entra na app sem passar
-      // pela entrada manual (e as acções de cliente passam a exigir sessão)
+      // o registo abre já a SESSÃO — mas o cadastro só fica ACTIVO depois
+      // de aprovado pelo administrador principal (a app mostra o ecrã de
+      // aguardo até lá)
       if (token && user) {
         setAuth({ token, user })
         setMode('cliente')
       }
       toast({
-        title: `Bem-vindo(a), ${customer.name.split(' ')[0]}! 💧`,
-        description: password.trim()
-          ? 'A sua conta foi criada e já está dentro. Use o telefone e a sua senha para entrar noutro aparelho.'
-          : 'A sua conta foi criada e já está dentro. A senha inicial é o seu número de telefone.',
+        title: pendingApproval
+          ? `Cadastro enviado, ${customer.name.split(' ')[0]}! ⏳`
+          : `Bem-vindo(a), ${customer.name.split(' ')[0]}! 💧`,
+        description: pendingApproval
+          ? 'O administrador vai analisar os seus dados e a foto. Assim que aprovar, você entra na app na hora — com aviso sonoro.'
+          : password.trim()
+            ? 'A sua conta foi criada e já está dentro. Use o telefone e a sua senha para entrar noutro aparelho.'
+            : 'A sua conta foi criada e já está dentro. A senha inicial é o seu número de telefone.',
       })
     } catch (err) {
       const isNetwork =
@@ -223,6 +234,25 @@ export function OnboardingView() {
                 />
                 <p className="text-[10px] leading-snug text-muted-foreground">
                   Para entrar depois na app. Se deixar vazio, a senha inicial é o seu telefone.
+                </p>
+              </div>
+
+              {/* FOTO DO CLIENTE — ajuda o administrador a aprovar o cadastro */}
+              <PhotoPicker
+                value={photo}
+                onChange={setPhoto}
+                name={name}
+                label="A sua foto"
+                hint="Recomendado — tirada da câmara ou da galeria. O administrador confirma a sua identidade antes de activar a conta."
+              />
+
+              {/* aviso de aprovação — o cadastro não fica activo na hora */}
+              <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <Hourglass className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <p className="text-[11px] leading-snug text-amber-800">
+                  <b>Como funciona:</b> depois de concluir, o seu cadastro fica à espera da
+                  <b> aprovação do administrador</b>. Assim que for aprovado, a app abre na hora
+                  — com aviso sonoro. Se não for aceite, você recebe uma mensagem com o motivo.
                 </p>
               </div>
             </div>
