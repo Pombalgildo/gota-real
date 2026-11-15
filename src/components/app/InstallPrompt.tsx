@@ -149,9 +149,24 @@ export function InstallPrompt({
     if (swRegistered) return
     swRegistered = true
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
-        /* silencioso — a app funciona mesmo sem SW */
-      })
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((reg) => {
+          // quando um SW NOVO (versão diferente) assumir o controlo da
+          // página, recarrega sozinho — o cliente vê as actualizações
+          // sem precisar de apagar cache à mão
+          let reloaded = false
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (reloaded) return
+            reloaded = true
+            window.location.reload()
+          })
+          // força a verificação de actualização logo no arranque
+          reg.update().catch(() => {})
+        })
+        .catch(() => {
+          /* silencioso — a app funciona mesmo sem SW */
+        })
     }
   }, [])
 

@@ -3,9 +3,13 @@
    - Carregamento mais rápido (recursos estáticos em cache)
    - Pré-requisito de instalação em versões mais antigas do Chrome
    - A API (pedidos, login) NUNCA é cacheada — dados sempre frescos
+   - Os chunks JS/CSS do Next usam REDE PRIMEIRO: em desenvolvimento o
+     nome do ficheiro mantém-se igual quando o código muda, e o cache
+     “primeiro” devolvia a versão ANTIGA mesmo depois de recarregar.
+     O cache fica só como reserva para uso offline.
    ============================================================ */
 
-const VERSION = 'gota-real-v0.2.10'
+const VERSION = 'gota-real-v0.2.11'
 const STATIC_CACHE = `${VERSION}-static`
 
 const PRECACHE = [
@@ -62,16 +66,32 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // recursos estáticos: cache primeiro (são imutáveis / com hash no nome)
-  const isStatic =
-    url.pathname.startsWith('/_next/static/') ||
+  // recursos estáticos IMUTÁVEIS (imagens/manifesto/ícones): cache
+  // primeiro — estes nunca mudam de conteúdo sem mudar de nome
+  const isImmutable =
     url.pathname.startsWith('/_next/image/') ||
     url.pathname.startsWith('/icon-') ||
     url.pathname.startsWith('/gota-real-logo') ||
     url.pathname === '/manifest.webmanifest' ||
     url.pathname === '/logo.svg' ||
     url.pathname === '/robots.txt'
-  if (!isStatic) return
+  if (!isImmutable) {
+    // chunks do Next (/_next/static/): REDE PRIMEIRO. Garante que o
+    // cliente vê sempre o código mais recente; o cache só entra em
+    // acção quando não há rede (app offline).
+    if (url.pathname.startsWith('/_next/static/')) {
+      event.respondWith(
+        fetch(req)
+          .then((res) => {
+            const copy = res.clone()
+            caches.open(STATIC_CACHE).then((c) => c.put(req, copy))
+            return res
+          })
+          .catch(() => caches.match(req))
+      )
+    }
+    return
+  }
 
   event.respondWith(
     caches.match(req).then(
