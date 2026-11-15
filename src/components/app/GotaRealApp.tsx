@@ -186,13 +186,14 @@ function PendingApprovalScreen() {
       </span>
       <h1 className="mt-5 text-xl font-black text-white">Cadastro recebido! 💧</h1>
       <p className="mt-2 max-w-sm text-sm leading-relaxed text-[#cfe7f8]">
-        Obrigado, <b>{customer?.name?.split(' ')[0]}</b>! O seu cadastro foi enviado e está a ser
-        analisado pelo administrador. Assim que for <b>aprovado</b>, esta tela muda sozinha e
-        você já pode pedir a sua água — não precisa de fazer nada.
+        Obrigado, <b>{customer?.name?.split(' ')[0]}</b>! O seu cadastro — com os seus dados e a
+        sua foto — foi enviado e está a ser analisado pelo administrador. Assim que for{' '}
+        <b>aprovado</b>, esta tela muda sozinha e você já pode pedir a sua água — não precisa de
+        fazer nada.
       </p>
       <p className="mt-3 max-w-xs rounded-2xl bg-white/10 p-3 text-[11px] leading-snug text-white/80 ring-1 ring-white/15">
-        ⏳ Enquanto aguarda, pode fechar a app. Aviso sonoro e notificação chegam no momento
-        da aprovação.
+        ⏳ Pode fechar a app enquanto aguarda — o aviso sonoro e a notificação chegam no momento
+        da aprovação. Se o cadastro não for aceite, você recebe uma mensagem com o motivo.
       </p>
       <LogoutButton label="Sair da conta" />
     </div>

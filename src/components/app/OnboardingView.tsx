@@ -14,7 +14,6 @@ import { registerCustomer } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import {
   Droplets,
-  Hourglass,
   KeyRound,
   Loader2,
   LogIn,
@@ -188,6 +187,18 @@ export function OnboardingView() {
                   Usamos o telefone para confirmar as suas entregas.
                 </p>
               </div>
+
+              {/* FOTO DO CLIENTE — no TOPO do formulário; enviada já no
+                  cadastro e usada pelo administrador para avaliar a
+                  aprovação (anti-malfeitor / anti-brincadeira) */}
+              <PhotoPicker
+                value={photo}
+                onChange={setPhoto}
+                name={name}
+                label="A sua foto"
+                hint="Recomendado — tirada da câmara ou da galeria do seu telemóvel."
+              />
+
               <div className="space-y-1.5">
                 <Label htmlFor="ob-name">Nome completo *</Label>
                 <Input
@@ -234,25 +245,6 @@ export function OnboardingView() {
                 />
                 <p className="text-[10px] leading-snug text-muted-foreground">
                   Para entrar depois na app. Se deixar vazio, a senha inicial é o seu telefone.
-                </p>
-              </div>
-
-              {/* FOTO DO CLIENTE — ajuda o administrador a aprovar o cadastro */}
-              <PhotoPicker
-                value={photo}
-                onChange={setPhoto}
-                name={name}
-                label="A sua foto"
-                hint="Recomendado — tirada da câmara ou da galeria. O administrador confirma a sua identidade antes de activar a conta."
-              />
-
-              {/* aviso de aprovação — o cadastro não fica activo na hora */}
-              <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <Hourglass className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                <p className="text-[11px] leading-snug text-amber-800">
-                  <b>Como funciona:</b> depois de concluir, o seu cadastro fica à espera da
-                  <b> aprovação do administrador</b>. Assim que for aprovado, a app abre na hora
-                  — com aviso sonoro. Se não for aceite, você recebe uma mensagem com o motivo.
                 </p>
               </div>
             </div>
